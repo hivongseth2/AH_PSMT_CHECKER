@@ -13,7 +13,7 @@ import {
 } from "./lib/constants";
 import * as XLSX from "xlsx";
 import { isWithinInterval, fromUnixTime } from "date-fns";
-import { processBatch } from './utils/bathProcessor';
+import { processBatch } from "./utils/bathProcessor";
 
 import { parseDate } from "./utils/dateUtils";
 
@@ -71,7 +71,7 @@ export default function App() {
 
   // xử lý dữ liệu checklist, date cua checklist khac nen phai xu ly kieu khac
   const processChecklistData = (data) => {
-    const headers = data[10]; // Dòng đầu tiên là header
+    const headers = data[9]; // Dòng đầu tiên là header
 
     const processedData = data.slice(1).map((row) => {
       const item = {}; // Object mới để lưu kết quả
@@ -102,17 +102,22 @@ export default function App() {
   const processRawData = (data) => {
     const headers = data[1];
 
-    return data.slice(1).map((row) => {
+    return data.slice(1).reduce((acc, row) => {
       const item = {};
       headers.forEach((header, index) => {
         if (RAW_DATA_HEADERS.includes(header)) {
           item[header] = row[index];
         }
       });
-      return item;
-    });
-  };
 
+      // Check if Product_id is defined before adding the item to the result
+      if (item["Product_id"] !== undefined) {
+        acc.push(item);
+      }
+
+      return acc;
+    }, []);
+  };
   // kieem tra du lieu
   const handleDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
@@ -183,6 +188,10 @@ export default function App() {
     const updateInterval = 500; // Update UI every 500 items processed
 
     const processItem = (row, index) => {
+      if (row["Product_id"] === undefined) {
+        console.log(`Skipping row ${index + 2}: Product_id is undefined`);
+        return null; // Return null to indicate this row should be skipped
+      }
       const checklistItem = checklist.find((item) => {
         const isMatchingProduct =
           item["Item Code"] == row["Product_id"] ||
@@ -192,7 +201,7 @@ export default function App() {
         const rowStore = row["Store ID - Unilever"];
         const storeValue = Number(item.stores[rowStore]);
 
-        return isMatchingProduct && storeValue > 0; // Chỉ trả về mục khớp và `storeValue > 0`
+        return isMatchingProduct && storeValue > 0;
       });
 
       if (!checklistItem) {
@@ -304,28 +313,60 @@ export default function App() {
         }
       }
       // =================trong thời gian linh động
-      else if (inFlexibleRange) {
+      if (inFlexibleRange) {
         const validCombinations = [
           [itemCode, newCode].filter(Boolean),
           [oldCode, itemCode].filter(Boolean),
         ];
 
-        const isValid = validCombinations.some(
-          (combo) =>
-            combo.length === 2 &&
-            combo.map(String).includes(String(row["Product_id"]))
-        );
-        return {
-          isValid: isValid,
-          isOutOfRange: false,
-          error: isValid
-            ? null
-            : {
-                row: index + 2,
-                message: `Mã sản phẩm không hợp lệ hoặc không đủ trong khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-              },
-        };
-      } else {
+        const currentProductId = String(row["Product_id"]);
+
+        // productId hiện tại
+
+        const isValid = validCombinations.some((combo) => {
+          if (combo.length === 1) {
+            // nằm trong khoảng thời gian linh động nhưng chỉ có 1 mã
+            return currentProductId === combo[0];
+          }
+          // nằm trong khoảng thời gian linh động và có 2 mã
+          else if (combo.length === 2) {
+            // lấy dòng hiện tại và dòng tiếp theo ra kiểm tra
+            const nextRow = rawData[index + 1];
+            const nextProductId = nextRow
+              ? String(nextRow["Product_id"])
+              : null;
+            // kiểm tra xem 2 mã sản phẩm có trùng nhau không (mã hiện tại và mã của dòng tiếp theo phải khớp với cả 2 )
+            return (
+              (currentProductId === combo[0] && nextProductId === combo[1]) ||
+              (currentProductId === combo[1] && nextProductId === combo[0])
+            );
+          }
+          return false;
+        });
+
+        if (isValid) {
+          if (validCombinations.some((combo) => combo.length === 2)) {
+            // nếu khớp không cần kiểm tra dòng tiếp theo nữa
+            processItem.skipNext = true;
+          }
+          return { isValid: true, isOutOfRange: false, error: null };
+        }
+
+        // không khớp báo lỗi
+        else {
+          return {
+            isValid: false,
+            isOutOfRange: false,
+            error: {
+              row: index + 2,
+              message: `Mã sản phẩm không hợp lệ trong khoảng thời gian linh động: ${currentProductId}. Ngày: ${row.Date}`,
+            },
+          };
+        }
+      }
+      // sau khoảng thời gian linh đông 
+      else {
+        //có cái newCode thì phải hiện thị new code
         if (newCode) {
           if (productId == newCode) {
             return { isValid: true, isOutOfRange: false, error: null };
@@ -339,7 +380,10 @@ export default function App() {
               },
             };
           }
-        } else if (oldCode) {
+        }
+
+        // trường hợp old và item lấy item
+        else if (oldCode) {
           if (productId == itemCode) {
             return { isValid: true, isOutOfRange: false, error: null };
           } else {
@@ -352,7 +396,9 @@ export default function App() {
               },
             };
           }
-        } else {
+        }
+        // không có old và new thì lấy item
+        else {
           if (productId == itemCode) {
             return { isValid: true, isOutOfRange: false, error: null };
           } else {
@@ -371,6 +417,7 @@ export default function App() {
 
     const onBatchComplete = (batchResults) => {
       batchResults.forEach((result) => {
+        if (result === null) return; // Skip null results
         if (result.isValid) results.validCount++;
         else if (result.isOutOfRange) results.outOfRangeCount++;
         else results.invalidCount++;
@@ -464,4 +511,3 @@ export default function App() {
     </div>
   );
 }
-
