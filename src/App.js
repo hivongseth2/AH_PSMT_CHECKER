@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Button } from "./components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
@@ -16,6 +16,7 @@ import { isWithinInterval, fromUnixTime } from "date-fns";
 import { processBatch } from "./utils/bathProcessor";
 
 import { parseDate } from "./utils/dateUtils";
+import { useForceUpdate } from "./hook/UseForceUpdate";
 
 export default function App() {
   const [files, setFiles] = useState({
@@ -25,6 +26,31 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(CHECK_TYPES.DAILY);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState(null);
+  const [currentProgress, setCurrentProgress] = useState(null);
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [progressUpdates, setProgressUpdates] = useState([]);
+  const forceUpdate = useForceUpdate();
+
+  const addProgressUpdate = useCallback(
+    (update) => {
+      setProgressUpdates((prevUpdates) => [...prevUpdates, update]);
+      forceUpdate();
+    },
+    [forceUpdate]
+  );
+  React.useEffect(() => {
+    if (batchProgress > 0) {
+      setProgressUpdates((prevUpdates) => [
+        ...prevUpdates,
+        {
+          productId: `Batch ${batchProgress}`,
+          date: new Date().toLocaleString(),
+          store: "N/A",
+          status: "Processed",
+        },
+      ]);
+    }
+  }, [batchProgress]);
 
   // xlsx đọc dữ liệu date kiểu number cần parse
   const DATE_FIELDS = [
@@ -71,7 +97,7 @@ export default function App() {
 
   // xử lý dữ liệu checklist, date cua checklist khac nen phai xu ly kieu khac
   const processChecklistData = (data) => {
-    const headers = data[9]; // Dòng đầu tiên là header
+    const headers = data[10]; // Dòng đầu tiên là header
 
     const processedData = data.slice(1).map((row) => {
       const item = {}; // Object mới để lưu kết quả
@@ -126,6 +152,7 @@ export default function App() {
 
     setIsProcessing(true);
     setResults(null);
+    setCurrentProgress([]); // Clear previous updates
 
     try {
       const [checklistData, rawData] = await Promise.all([
@@ -184,14 +211,21 @@ export default function App() {
       errors: [],
     };
 
-    const batchSize = 1000; // Adjust this value based on performance testing
-    const updateInterval = 500; // Update UI every 500 items processed
+    const batchSize = 1000;
 
     const processItem = (row, index) => {
+      // Update current progress
+      addProgressUpdate({
+        productId: row["Product_id"],
+        date: row.Date,
+        store: row["Store ID - Unilever"],
+        status: "Đang kiểm tra",
+      });
       if (row["Product_id"] === undefined) {
         console.log(`Skipping row ${index + 2}: Product_id is undefined`);
         return null; // Return null to indicate this row should be skipped
       }
+
       const checklistItem = checklist.find((item) => {
         const isMatchingProduct =
           item["Item Code"] == row["Product_id"] ||
@@ -214,6 +248,7 @@ export default function App() {
           },
         };
       }
+
       if (row.Date === undefined) {
         return {
           isValid: false,
@@ -325,26 +360,41 @@ export default function App() {
 
         const isValid = validCombinations.some((combo) => {
           if (combo.length === 1) {
-            // nằm trong khoảng thời gian linh động nhưng chỉ có 1 mã
-            return currentProductId === combo[0];
+            // Đảm bảo combo có độ dài 1 chỉ được kiểm tra trong những trường hợp hợp lệ
+            return currentProductId === combo[0]; // So sánh với mã trong combo
           }
-          // nằm trong khoảng thời gian linh động và có 2 mã
-          else if (combo.length === 2) {
-            // lấy dòng hiện tại và dòng tiếp theo ra kiểm tra
+
+          // Combo có độ dài 2, xử lý logic sau
+          if (combo.length === 2) {
             const nextRow = rawData[index + 1];
             const nextProductId = nextRow
               ? String(nextRow["Product_id"])
               : null;
-            // kiểm tra xem 2 mã sản phẩm có trùng nhau không (mã hiện tại và mã của dòng tiếp theo phải khớp với cả 2 )
+            if (currentProductId == "69980215") {
+              console.log("Current Product:", currentProductId);
+              console.log("Next Product:", nextProductId);
+              console.log("Combo:", combo.length, combo);
+              console.log(
+                (currentProductId === combo[0] && nextProductId === combo[1]) ||
+                  (currentProductId === combo[1] && nextProductId === combo[0])
+              );
+            }
+
+            // Kiểm tra sự khớp của cả hai mã
             return (
               (currentProductId === combo[0] && nextProductId === combo[1]) ||
               (currentProductId === combo[1] && nextProductId === combo[0])
             );
           }
+
+          // Nếu không phải combo hợp lệ, trả về false
           return false;
         });
+        if (currentProductId == "69980215") {
+          console.log("Final isValid:", isValid);
+        }
 
-        if (isValid) {
+        if (isValid == true) {
           if (validCombinations.some((combo) => combo.length === 2)) {
             // nếu khớp không cần kiểm tra dòng tiếp theo nữa
             processItem.skipNext = true;
@@ -364,7 +414,7 @@ export default function App() {
           };
         }
       }
-      // sau khoảng thời gian linh đông 
+      // sau khoảng thời gian linh đông
       else {
         //có cái newCode thì phải hiện thị new code
         if (newCode) {
@@ -415,7 +465,7 @@ export default function App() {
       }
     };
 
-    const onBatchComplete = (batchResults) => {
+    const onBatchComplete = (batchResults, currentIndex, totalItems) => {
       batchResults.forEach((result) => {
         if (result === null) return; // Skip null results
         if (result.isValid) results.validCount++;
@@ -423,9 +473,29 @@ export default function App() {
         else results.invalidCount++;
         if (result.error) results.errors.push(result.error);
       });
+
+      // Update overall progress
+      const progress = Math.round((currentIndex / totalItems) * 100);
+      addProgressUpdate({
+        productId: `Batch ${Math.floor(currentIndex / batchSize)}`,
+        date: new Date().toLocaleString(),
+        store: "N/A",
+        status: `Processed (${progress}% complete)`,
+      });
     };
 
-    await processBatch(rawData, batchSize, processItem, onBatchComplete);
+    const onProgress = (progress) => {
+      setBatchProgress(Math.round(progress * 100));
+      forceUpdate();
+    };
+
+    await processBatch(
+      rawData,
+      batchSize,
+      processItem,
+      onBatchComplete,
+      onProgress
+    );
 
     return results;
   };
@@ -503,8 +573,12 @@ export default function App() {
                 </Card>
               </TabsContent>
             </Tabs>
-
-            <ResultDisplay results={results} isLoading={isProcessing} />
+            <ResultDisplay
+              results={results}
+              isLoading={isProcessing}
+              progressUpdates={progressUpdates}
+              batchProgress={batchProgress}
+            />
           </CardContent>
         </Card>
       </div>

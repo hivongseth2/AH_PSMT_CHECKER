@@ -1,22 +1,36 @@
-export async function processBatch(items, batchSize, processItem, onBatchComplete) {
-    const results = [];
-  
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      const batchResults = await new Promise((resolve) => {
-        setTimeout(() => {
-          const processed = batch.map((item, index) => processItem(item, i + index));
-          resolve(processed);
-        }, 0);
-      });
-  
-      results.push(...batchResults);
-  
+export async function processBatch(
+  items,
+  batchSize,
+  processItem,
+  onBatchComplete,
+  onProgress
+) {
+  const results = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const result = await new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(processItem(items[i], i));
+      }, 0);
+    });
+
+    results.push(result);
+
+    if (onProgress) {
+      onProgress((i + 1) / items.length);
+    }
+
+    if ((i + 1) % batchSize === 0 || i === items.length - 1) {
       if (onBatchComplete) {
-        onBatchComplete(batchResults);
+        onBatchComplete(results.slice(-batchSize), i + 1, items.length);
       }
     }
-  
-    return results;
+
+    // Yield control back to the main thread every 10 items
+    if ((i + 1) % 10 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   }
-  
+
+  return results;
+}
