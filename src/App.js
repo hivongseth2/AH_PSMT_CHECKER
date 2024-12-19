@@ -13,6 +13,7 @@ import {
 } from "./lib/constants";
 import * as XLSX from "xlsx";
 import { isWithinInterval, fromUnixTime } from "date-fns";
+import { processBatch } from './utils/bathProcessor';
 
 import { parseDate } from "./utils/dateUtils";
 
@@ -131,7 +132,7 @@ export default function App() {
       const processedChecklist = processChecklistData(checklistData);
       const processedRawData = processRawData(rawData);
       // bat dau kiem tra bat/ tat
-      const validationResults = validateData(
+      const validationResults = await validateData(
         processedChecklist,
         processedRawData
       );
@@ -169,9 +170,8 @@ export default function App() {
       setIsProcessing(false);
     }
   };
-  // ... (previous imports and component code remain unchanged)
 
-  const validateData = (checklist, rawData) => {
+  const validateData = async (checklist, rawData) => {
     const results = {
       validCount: 0,
       invalidCount: 0,
@@ -179,51 +179,44 @@ export default function App() {
       errors: [],
     };
 
-    rawData.forEach((row, index) => {
+    const batchSize = 1000; // Adjust this value based on performance testing
+    const updateInterval = 500; // Update UI every 500 items processed
+
+    const processItem = (row, index) => {
       const checklistItem = checklist.find((item) => {
         const isMatchingProduct =
           item["Item Code"] == row["Product_id"] ||
           item["Old code"] == row["Product_id"] ||
           (item["New code"] && item["New code"] == row["Product_id"]);
-      
+
         const rowStore = row["Store ID - Unilever"];
         const storeValue = Number(item.stores[rowStore]);
 
-
-       console.log(`Store Value: ${storeValue}`);
-      
         return isMatchingProduct && storeValue > 0; // Chỉ trả về mục khớp và `storeValue > 0`
       });
 
       if (!checklistItem) {
-        results.invalidCount++;
-        results.errors.push({
-          row: index + 2,
-          message: `Không tìm thấy mã sản phẩm trong checklist: ${row["Product_id"]}. Ngày: ${row.Date}, Cửa hàng: ${row["Store ID - Unilever"]}`,
-        });
-        return; // Continue to the next iteration
+        return {
+          isValid: false,
+          isOutOfRange: false,
+          error: {
+            row: index + 2,
+            message: `Không tìm thấy mã sản phẩm trong checklist: ${row["Product_id"]}. Ngày: ${row.Date}, Cửa hàng: ${row["Store ID - Unilever"]}`,
+          },
+        };
       }
       if (row.Date === undefined) {
-        results.invalidCount++;
-        results.errors.push({
-          row: index + 1,
-          message: `rowDate undefined: ${row["Product_id"]}. Ngày: ${row.Date}, Cửa hàng: ${row["Store ID - Unilever"]}`,
-        });
-        return; // Continue to the next iteration
+        return {
+          isValid: false,
+          isOutOfRange: false,
+          error: {
+            row: index + 1,
+            message: `rowDate undefined: ${row["Product_id"]}. Ngày: ${row.Date}, Cửa hàng: ${row["Store ID - Unilever"]}`,
+          },
+        };
       }
 
-      console.log(row.Date, "row.date");
-
       const rowDate = parseDate(row.Date, "row.Date parse");
-
-      console.log(
-        checklistItem["Ngày Bắt Đầu Linh Động Đo Hàng Cũ & Mới"],
-        "Ngày Bắt Đầu Linh Động Đo Hàng Cũ & Mới"
-      );
-      console.log(
-        checklistItem["Ngày Kết Thúc Linh Động Đo Hàng Cũ & Mới"],
-        "Ngày Kết Thúc Linh Động Đo Hàng Cũ & Mới"
-      );
 
       const flexStartDate =
         checklistItem["Ngày Bắt Đầu Linh Động Đo Hàng Cũ & Mới"] !== undefined
@@ -254,123 +247,141 @@ export default function App() {
 
       // tồn tại ngày bắt đầu linh động và ngày hiện tại nhỏ hơn ngày linh động
       if (flexStartDate && rowDate < flexStartDate) {
-        // luôn luôn là item code
-
         if (productId === itemCode) {
-          results.validCount++;
+          return { isValid: true, isOutOfRange: false, error: null };
         } else {
-          results.invalidCount++;
-          results.errors.push({
-            row: index + 2,
-            message: `Mã sản phẩm không hợp lệ trước khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-          });
+          return {
+            isValid: false,
+            isOutOfRange: false,
+            error: {
+              row: index + 2,
+              message: `Mã sản phẩm không hợp lệ trước khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+            },
+          };
         }
-      } 
+      }
       // ngày hiện tại lớn hơn ngày kết thúc linh động
       else if (flexStartDate && rowDate > flexEndDate) {
-
         if (newCode) {
-          // Item Code + New Code : lấy new code
           if (productId == newCode) {
-            results.validCount++;
+            return { isValid: true, isOutOfRange: false, error: null };
           } else {
-            results.outOfRangeCount++;
-            results.errors.push({
-              row: index + 2,
-              message: `New code không đúng sau khoảng thời gian linh động (ngày hiện tại > flexEndDate): ${productId}. Ngày: ${row.Date}`,
-            });
+            return {
+              isValid: false,
+              isOutOfRange: true,
+              error: {
+                row: index + 2,
+                message: `New code không đúng sau khoảng thời gian linh động (ngày hiện tại > flexEndDate): ${productId}. Ngày: ${row.Date}`,
+              },
+            };
           }
         } else if (oldCode) {
-          //Old Code + Item Code, check Item Code
           if (productId == itemCode) {
-            results.validCount++;
+            return { isValid: true, isOutOfRange: false, error: null };
           } else {
-            results.outOfRangeCount++;
-            results.errors.push({
-              row: index + 2,
-              message: `Item code không đúng sau khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-            });
+            return {
+              isValid: false,
+              isOutOfRange: true,
+              error: {
+                row: index + 2,
+                message: `Item code không đúng sau khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+              },
+            };
           }
         } else {
-          // chỉ có 1 mình item code
           if (productId == itemCode) {
-            results.validCount++;
+            return { isValid: true, isOutOfRange: false, error: null };
           } else {
-            results.outOfRangeCount++;
-            results.errors.push({
-              row: index + 2,
-              message: `Mã sản phẩm không hợp lệ ngoài khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-            });
+            return {
+              isValid: false,
+              isOutOfRange: true,
+              error: {
+                row: index + 2,
+                message: `Mã sản phẩm không hợp lệ ngoài khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+              },
+            };
           }
         }
       }
       // =================trong thời gian linh động
       else if (inFlexibleRange) {
-        //trong khoảng thời gian linh động
         const validCombinations = [
           [itemCode, newCode].filter(Boolean),
           [oldCode, itemCode].filter(Boolean),
         ];
 
-        // xuất hiện 2 mã
         const isValid = validCombinations.some(
           (combo) =>
             combo.length === 2 &&
             combo.map(String).includes(String(row["Product_id"]))
         );
-        if (isValid) {
-          results.validCount++;
-        } else {
-          results.invalidCount++;
-          results.errors.push({
-            row: index + 2,
-            message: `Mã sản phẩm không hợp lệ hoặc không đủ trong khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-          });
-        }
+        return {
+          isValid: isValid,
+          isOutOfRange: false,
+          error: isValid
+            ? null
+            : {
+                row: index + 2,
+                message: `Mã sản phẩm không hợp lệ hoặc không đủ trong khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+              },
+        };
       } else {
-        // ======================================================
-        // sau khoảng thời gian linh động
         if (newCode) {
-          // Item Code + New Code : lấy new code
           if (productId == newCode) {
-            results.validCount++;
+            return { isValid: true, isOutOfRange: false, error: null };
           } else {
-            results.outOfRangeCount++;
-            results.errors.push({
-              row: index + 2,
-              message: `Mã sản phẩm không phải là mã mới nhất sau khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-            });
+            return {
+              isValid: false,
+              isOutOfRange: true,
+              error: {
+                row: index + 2,
+                message: `Mã sản phẩm không phải là mã mới nhất sau khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+              },
+            };
           }
         } else if (oldCode) {
-          //Old Code + Item Code, check Item Code
           if (productId == itemCode) {
-            results.validCount++;
+            return { isValid: true, isOutOfRange: false, error: null };
           } else {
-            results.outOfRangeCount++;
-            results.errors.push({
-              row: index + 2,
-              message: `Mã sản phẩm không phải là mã mới nhất ngoài khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-            });
+            return {
+              isValid: false,
+              isOutOfRange: true,
+              error: {
+                row: index + 2,
+                message: `Mã sản phẩm không phải là mã mới nhất ngoài khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+              },
+            };
           }
         } else {
-          // chỉ có 1 mình item code
           if (productId == itemCode) {
-            results.validCount++;
+            return { isValid: true, isOutOfRange: false, error: null };
           } else {
-            results.outOfRangeCount++;
-            results.errors.push({
-              row: index + 2,
-              message: `Mã sản phẩm không hợp lệ ngoài khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
-            });
+            return {
+              isValid: false,
+              isOutOfRange: true,
+              error: {
+                row: index + 2,
+                message: `Mã sản phẩm không hợp lệ ngoài khoảng thời gian linh động: ${productId}. Ngày: ${row.Date}`,
+              },
+            };
           }
         }
       }
-    });
+    };
+
+    const onBatchComplete = (batchResults) => {
+      batchResults.forEach((result) => {
+        if (result.isValid) results.validCount++;
+        else if (result.isOutOfRange) results.outOfRangeCount++;
+        else results.invalidCount++;
+        if (result.error) results.errors.push(result.error);
+      });
+    };
+
+    await processBatch(rawData, batchSize, processItem, onBatchComplete);
 
     return results;
   };
-
-  // ... (rest of the component code remains unchanged)
 
   return (
     <div className="min-h-screen bg-gray-100 py-8">
@@ -453,3 +464,4 @@ export default function App() {
     </div>
   );
 }
+
