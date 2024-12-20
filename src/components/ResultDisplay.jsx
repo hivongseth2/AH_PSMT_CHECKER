@@ -49,7 +49,7 @@ const ResultDisplay = ({
               <>
                 {displayedUpdates.map(
                   (update, index) =>
-                    `>  ${update.productId} | ${update.date} | ${update.store} | ${update.status}\n`
+                    `>  ${update.productId} | ${update.date} | ${update.store} \n`
                 )}
                 - Đang xử lý dữ liệu... ({batchProgress}% complete)
               </>

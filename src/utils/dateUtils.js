@@ -1,6 +1,6 @@
 import { parse } from 'date-fns';
 
-export const parseDate = (dateString: string): Date => {
+export const parseDate = (dateString) => {
   // Try parsing as DD/MM/YYYY first
 
   console.log();
