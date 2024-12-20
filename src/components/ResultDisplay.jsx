@@ -26,6 +26,7 @@ const ResultDisplay = ({
 
   useEffect(() => {
     setDisplayedUpdates((prevDisplayed) => {
+      console.log("setDisplayedUpdates", progressUpdates);
       const newUpdates = progressUpdates.slice(prevDisplayed.length);
       return [...prevDisplayed, ...newUpdates].slice(-100); // Keep last 100 updates
     });
@@ -36,30 +37,33 @@ const ResultDisplay = ({
       <CardHeader>
         <CardTitle>Kết Quả Kiểm Tra</CardTitle>
       </CardHeader>
+
       <CardContent>
-        <div
-          ref={consoleRef}
-          className="bg-black text-green-400 p-4 font-mono text-sm h-64 overflow-y-auto mb-4"
-          style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}
-        >
-          {isLoading ? (
-            <>
-              {displayedUpdates.map(
-                (update, index) =>
-                  `> Đang kiểm tra: ${update.productId} | ${update.date} | ${update.store} | ${update.status}\n`
-              )}
-              - Đang xử lý dữ liệu... (${batchProgress}% complete)\n
-            </>
-          ) : (
-            results &&
-            results.map(
-              (result, index) =>
-                `> ${result.type.toUpperCase()}: ${result.title} - ${
-                  result.message
-                }\n`
-            )
-          )}
-        </div>
+        {isLoading && (
+          <div
+            ref={consoleRef}
+            className="bg-black text-green-400 p-4 font-mono text-sm h-64 overflow-y-auto mb-4"
+            style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}
+          >
+            {isLoading ? (
+              <>
+                {displayedUpdates.map(
+                  (update, index) =>
+                    `>  ${update.productId} | ${update.date} | ${update.store} | ${update.status}\n`
+                )}
+                - Đang xử lý dữ liệu... ({batchProgress}% complete)
+              </>
+            ) : (
+              results &&
+              results.map(
+                (result, index) =>
+                  `> ${result.type.toUpperCase()}: ${result.title} - ${
+                    result.message
+                  }\n`
+              )
+            )}
+          </div>
+        )}
         {results && (
           <Table>
             <TableHeader>
