@@ -97,7 +97,7 @@ export default function App() {
 
   // xử lý dữ liệu checklist, date cua checklist khac nen phai xu ly kieu khac
   const processChecklistData = (data) => {
-    const headers = data[10]; // Dòng đầu tiên là header
+    const headers = data[9]; // Dòng đầu tiên là header
 
     const processedData = data.slice(1).map((row) => {
       const item = {}; // Object mới để lưu kết quả
@@ -221,6 +221,11 @@ export default function App() {
         store: row["Store ID - Unilever"],
         status: "Đang kiểm tra",
       });
+      // If the previous iteration set skipNext to true, skip this item
+      if (processItem.skipNext) {
+        processItem.skipNext = false; // Reset the flag
+        return null;
+      }
       if (row["Product_id"] === undefined) {
         console.log(`Skipping row ${index + 2}: Product_id is undefined`);
         return null; // Return null to indicate this row should be skipped
@@ -358,40 +363,39 @@ export default function App() {
 
         // productId hiện tại
 
-        const isValid = validCombinations.some((combo) => {
-          if (combo.length === 1) {
-            // Đảm bảo combo có độ dài 1 chỉ được kiểm tra trong những trường hợp hợp lệ
-            return currentProductId === combo[0]; // So sánh với mã trong combo
+        console.log(validCombinations, "validCombinations");
+
+        // kiểm tra có combo nào có độ dài = 2 và 2 mã khác nhau không?
+        const comboWithLengthGreaterThan2 = validCombinations.find(
+          (combo) => combo.length === 2 && combo[0] !== combo[1]
+        );
+
+        let isValid = false;
+
+        if (comboWithLengthGreaterThan2) {
+          // Nếu có combo với độ dài == 2, kiểm tra sự khớp của các mã
+          const nextRow = rawData[index + 1];
+          const nextProductId = nextRow ? String(nextRow["Product_id"]) : null;
+
+          isValid =
+            (currentProductId === comboWithLengthGreaterThan2[0] &&
+              nextProductId === comboWithLengthGreaterThan2[1]) ||
+            (currentProductId === comboWithLengthGreaterThan2[1] &&
+              nextProductId === comboWithLengthGreaterThan2[0]);
+        } else {
+          // Nếu không có combo với độ dài > 2, kiểm tra combo có độ dài 1
+          const validCombo = validCombinations.find(
+            (combo) => combo.length === 1
+          );
+          if (validCombo) {
+            isValid = currentProductId === validCombo[0];
           }
+        }
 
-          // Combo có độ dài 2, xử lý logic sau
-          if (combo.length === 2) {
-            const nextRow = rawData[index + 1];
-            const nextProductId = nextRow
-              ? String(nextRow["Product_id"])
-              : null;
-            if (currentProductId == "69980215") {
-              console.log("Current Product:", currentProductId);
-              console.log("Next Product:", nextProductId);
-              console.log("Combo:", combo.length, combo);
-              console.log(
-                (currentProductId === combo[0] && nextProductId === combo[1]) ||
-                  (currentProductId === combo[1] && nextProductId === combo[0])
-              );
-            }
-
-            // Kiểm tra sự khớp của cả hai mã
-            return (
-              (currentProductId === combo[0] && nextProductId === combo[1]) ||
-              (currentProductId === combo[1] && nextProductId === combo[0])
-            );
-          }
-
-          // Nếu không phải combo hợp lệ, trả về false
-          return false;
-        });
-        if (currentProductId == "69980215") {
+        if (currentProductId == "64382311") {
           console.log("Final isValid:", isValid);
+          console.log("Combo with length > 2:", comboWithLengthGreaterThan2);
+          console.log("Current Product:", currentProductId);
         }
 
         if (isValid == true) {
@@ -404,6 +408,10 @@ export default function App() {
 
         // không khớp báo lỗi
         else {
+          if (validCombinations.some((combo) => combo.length === 2)) {
+            // nếu khớp không cần kiểm tra dòng tiếp theo nữa
+            processItem.skipNext = true;
+          }
           return {
             isValid: false,
             isOutOfRange: false,
