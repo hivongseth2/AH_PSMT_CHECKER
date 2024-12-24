@@ -15,4 +15,5 @@ export const ERROR_MESSAGES = {
     `Mã sản phẩm không hợp lệ trong khoảng thời gian linh động: ${productId}. Ngày: ${date}`,
   INVALID_PRODUCT_AFTER_FLEX: (productId, date) =>
     `Mã sản phẩm không phải là mã mới nhất sau khoảng thời gian linh động: ${productId}. Ngày: ${date}`,
+  
 };

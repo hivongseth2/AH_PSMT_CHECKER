@@ -22,7 +22,7 @@ export const processExcelFile = async (file) => {
 };
 
 export const processChecklistData = (data) => {
-  const headers = data[10];
+  const headers = data[9];
 
   const processedData = data.slice(1).map((row) => {
     const item = {};

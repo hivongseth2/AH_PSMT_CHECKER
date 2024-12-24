@@ -21,6 +21,12 @@ import {
 } from "./utils/excelUtils";
 import { validateData } from "./utils/dataValidation";
 import { useForceUpdate } from "./hook/UseForceUpdate";
+import {
+  processRawDataForScoring,
+  compareActualVsExpected,
+} from "./utils/dataProcessing";
+import ScoringResultDisplay from "./components/ScoringResultDisplay";
+import { countStore } from "./utils/countStore";
 
 export default function App() {
   const [files, setFiles] = useState({
@@ -34,6 +40,7 @@ export default function App() {
   const [batchProgress, setBatchProgress] = useState(0);
   const [progressUpdates, setProgressUpdates] = useState([]);
   const forceUpdate = useForceUpdate();
+  const [scoringResults, setScoringResults] = useState(null);
 
   const addProgressUpdate = useCallback(
     (update) => {
@@ -71,14 +78,42 @@ export default function App() {
     }
   };
 
-  const handleDataCheck = async () => {
+  // ====
+  // if (activeTab === CHECK_TYPES.DAILY) {
+  //     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
+  //       return;
+  //     }
+
+  //     setIsProcessing(true);
+  //     setResults(null);
+  //     setCurrentProgress([]); // Clear previous updates
+
+  //     try {
+  //       const [checklistData, rawData] = await Promise.all([
+  //         processExcelFile(files[FILE_TYPES.CHECKLIST]),
+  //         processExcelFile(files[FILE_TYPES.RAW_DATA]),
+  //       ]);
+
+  //       const processedChecklist = processChecklistData(checklistData);
+  //       const processedRawData = processRawData(rawData);
+
+  //       const validationResults = await validateData(
+  //         processedChecklist,
+  //         processedRawData,
+  //         addProgressUpdate,
+  //         setBatchProgress,
+  //         forceUpdate
+  //       );
+
+  // ===
+
+  const handleScoringDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
       return;
     }
 
     setIsProcessing(true);
-    setResults(null);
-    setCurrentProgress([]); // Clear previous updates
+    setScoringResults(null);
 
     try {
       const [checklistData, rawData] = await Promise.all([
@@ -89,37 +124,16 @@ export default function App() {
       const processedChecklist = processChecklistData(checklistData);
       const processedRawData = processRawData(rawData);
 
-      const validationResults = await validateData(
+      const validationResults = await countStore(
         processedChecklist,
         processedRawData,
         addProgressUpdate,
-        setBatchProgress,
-        forceUpdate
+        setBatchProgress
       );
 
-      setResults([
-        {
-          type: "info",
-          title: "Thông tin tệp",
-          message: `Đã xử lý ${processedChecklist.length} dòng từ checklist và ${processedRawData.length} dòng từ dữ liệu thô`,
-        },
-        {
-          type: "info",
-          title: "Kết quả kiểm tra",
-          message: `
-            Dữ liệu hợp lệ: ${validationResults.validCount}
-            Dữ liệu không hợp lệ: ${validationResults.invalidCount}
-            Dữ liệu ngoài phạm vi: ${validationResults.outOfRangeCount}
-          `,
-        },
-        ...validationResults.errors.map((error) => ({
-          type: "error",
-          title: `Lỗi ở dòng ${error.row}`,
-          message: error.message,
-        })),
-      ]);
+      setScoringResults(validationResults);
     } catch (error) {
-      setResults([
+      setScoringResults([
         {
           type: "error",
           title: "Lỗi xử lý",
@@ -128,6 +142,70 @@ export default function App() {
       ]);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleDataCheck = async () => {
+    if (activeTab === CHECK_TYPES.DAILY) {
+      if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
+        return;
+      }
+
+      setIsProcessing(true);
+      setResults(null);
+      setCurrentProgress([]); // Clear previous updates
+
+      try {
+        const [checklistData, rawData] = await Promise.all([
+          processExcelFile(files[FILE_TYPES.CHECKLIST]),
+          processExcelFile(files[FILE_TYPES.RAW_DATA]),
+        ]);
+
+        const processedChecklist = processChecklistData(checklistData);
+        const processedRawData = processRawData(rawData);
+
+        const validationResults = await validateData(
+          processedChecklist,
+          processedRawData,
+          addProgressUpdate,
+          setBatchProgress,
+          forceUpdate
+        );
+
+        setResults([
+          {
+            type: "info",
+            title: "Thông tin tệp",
+            message: `Đã xử lý ${processedChecklist.length} dòng từ checklist và ${processedRawData.length} dòng từ dữ liệu thô`,
+          },
+          {
+            type: "info",
+            title: "Kết quả kiểm tra",
+            message: `
+            Dữ liệu hợp lệ: ${validationResults.validCount}
+            Dữ liệu không hợp lệ: ${validationResults.invalidCount}
+            Dữ liệu ngoài phạm vi: ${validationResults.outOfRangeCount}
+          `,
+          },
+          ...validationResults.errors.map((error) => ({
+            type: "error",
+            title: `Lỗi ở dòng ${error.row}`,
+            message: error.message,
+          })),
+        ]);
+      } catch (error) {
+        setResults([
+          {
+            type: "error",
+            title: "Lỗi xử lý",
+            message: error.message,
+          },
+        ]);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (activeTab === CHECK_TYPES.SCORING) {
+      await handleScoringDataCheck();
     }
   };
 
@@ -193,8 +271,11 @@ export default function App() {
                       <Button
                         onClick={handleDataCheck}
                         disabled={
-                          !files[FILE_TYPES.CHECKLIST] ||
-                          !files[FILE_TYPES.RAW_DATA] ||
+                          (activeTab === CHECK_TYPES.DAILY &&
+                            !files[FILE_TYPES.DAILY]) ||
+                          (activeTab === CHECK_TYPES.SCORING &&
+                            (!files[FILE_TYPES.CHECKLIST] ||
+                              !files[FILE_TYPES.RAW_DATA])) ||
                           isProcessing
                         }
                         isLoading={isProcessing}
@@ -212,12 +293,22 @@ export default function App() {
                   </Card>
                 </TabsContent>
               </Tabs>
-              <ResultDisplay
-                results={results}
-                isLoading={isProcessing}
-                progressUpdates={progressUpdates}
-                batchProgress={batchProgress}
-              />
+
+              {activeTab === CHECK_TYPES.SCORING && (
+                <ScoringResultDisplay
+                  results={scoringResults}
+                  isLoading={isProcessing}
+                />
+              )}
+
+              {activeTab !== CHECK_TYPES.SCORING && (
+                <ResultDisplay
+                  results={results}
+                  isLoading={isProcessing}
+                  progressUpdates={progressUpdates}
+                  batchProgress={batchProgress}
+                />
+              )}
             </CardContent>
           </Card>
         </div>
