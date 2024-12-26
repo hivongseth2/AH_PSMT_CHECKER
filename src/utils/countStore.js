@@ -91,6 +91,13 @@ export const countStore = async (
                     expectedSKUs.push(ItemCode);
                   }
                 }
+
+                // sai chỗ này
+                else {
+                  expectedCount += 1;
+
+                  expectedSKUs.push(ItemCode);
+                }
               }
 
               // sai chỗ này
