@@ -16,8 +16,9 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
       "SKU Kỳ vọng",
       "SKU Thực tế",
       "Trạng thái",
-      "SKU Thiếu",
-      "SKU Thừa",
+      "SKU",
+      "Loại",
+      "Mô tả",
     ]);
 
     // Style headers
@@ -35,23 +36,54 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
     Object.entries(dataToExport).forEach(([date, stores]) => {
       Object.entries(stores).forEach(([storeId, storeData]) => {
         if (!showOnlyDiscrepancies || storeData.expected !== storeData.actual) {
-          worksheet.addRow([
+          const baseRow = [
             new Date(date).toLocaleDateString("vi-VN"),
             storeId,
             storeData.expected,
             storeData.actual,
             storeData.expected === storeData.actual ? "Đạt" : "Không đạt",
-            storeData.missingSKUs.join("\n"),
-            storeData.extraSKUs.join("\n"),
-          ]);
+          ];
+
+          // Add rows for missing SKUs
+          storeData.missingSKUs.forEach((sku) => {
+            worksheet.addRow([
+              ...baseRow,
+              sku,
+              "Thiếu",
+              `SKU ${sku} bị thiếu tại cửa hàng ${storeId}`,
+            ]);
+          });
+
+          // Add rows for extra SKUs
+          storeData.extraSKUs.forEach((sku) => {
+            worksheet.addRow([
+              ...baseRow,
+              sku,
+              "Thừa",
+              `SKU ${sku} thừa tại cửa hàng ${storeId}`,
+            ]);
+          });
+
+          // If there are no missing or extra SKUs, add a single row
+          if (
+            storeData.missingSKUs.length === 0 &&
+            storeData.extraSKUs.length === 0
+          ) {
+            worksheet.addRow([
+              ...baseRow,
+              "",
+              "",
+              "Không có SKU thiếu hoặc thừa",
+            ]);
+          }
         }
       });
     });
 
     // Style the worksheet
     worksheet.columns.forEach((column, index) => {
-      column.width = index === 5 || index === 6 ? 30 : 20; // Wider columns for missing and extra SKUs
-      column.alignment = { vertical: "top", wrapText: true };
+      column.width = index === 7 ? 40 : 20; // Wider column for description
+      column.alignment = { vertical: "middle", wrapText: true };
     });
 
     // Apply colors and borders
@@ -67,6 +99,8 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
 
       if (rowNumber !== 1) {
         const status = row.getCell(5).value;
+        const skuType = row.getCell(7).value;
+
         if (status === "Đạt") {
           row.getCell(5).fill = {
             type: "pattern",
@@ -78,6 +112,20 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
             type: "pattern",
             pattern: "solid",
             fgColor: { argb: "FFFF0000" },
+          };
+        }
+
+        if (skuType === "Thiếu") {
+          row.getCell(7).fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFFF0000" }, // Red
+          };
+        } else if (skuType === "Thừa") {
+          row.getCell(7).fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF92D050" }, // Green
           };
         }
       }
