@@ -27,6 +27,7 @@ export const countStore = async (
 
   const calculateExpectedSKUs = (date, storeId, checklistBatch) => {
     let expectedCount = 0;
+    let expectedSKUs = [];
     checklistBatch.forEach((item, index) => {
       if (index > 11) {
         const startDate = new Date(item["START DATE"]);
@@ -53,42 +54,60 @@ export const countStore = async (
               (ItemCode && NewCode && ItemCode !== NewCode) || // Cặp ItemCode - NewCode hợp lệ
               (ItemCode && OldCode && ItemCode !== OldCode); // Cặp ItemCode - OldCode hợp lệ
 
-            // Đảm bảo có ít nhất một cặp hợp lệ
-            const hasValidPair =
-              ItemCode && (NewCode || OldCode) && isValidPair;
             if (
               normalizedItemDate >= normalizedStartDate &&
               normalizedItemDate <= normalizedEndDate
             ) {
-              if (
-                flexStartDate &&
-                flexEndDate &&
-                isValidPair &&
-                isWithinInterval(normalizedItemDate, {
-                  start: flexStartDate.setHours(0, 0, 0, 0),
-                  end: flexEndDate.setHours(0, 0, 0, 0),
-                })
-              ) {
-                expectedCount += 2;
-              } else {
+              // trong khoảng thời gian flex và 2 item khác nhau
+              if (flexStartDate && flexEndDate && isValidPair) {
+                if (
+                  isWithinInterval(normalizedItemDate, {
+                    start: flexStartDate.setHours(0, 0, 0, 0),
+                    end: flexEndDate.setHours(0, 0, 0, 0),
+                  })
+                ) {
+                  expectedCount += 2;
+                  expectedSKUs.push(ItemCode);
+                  expectedSKUs.push(NewCode || OldCode);
+                } else if (
+                  normalizedItemDate > flexEndDate.setHours(0, 0, 0, 0)
+                ) {
+                  // sau flexable
+
+                  expectedCount += 1;
+                  if (NewCode) {
+                    expectedSKUs.push(NewCode);
+                  } else {
+                    expectedSKUs.push(ItemCode);
+                  }
+                } else if (
+                  normalizedItemDate < flexStartDate.setHours(0, 0, 0, 0)
+                ) {
+                  //trước flexable
+                  expectedCount += 1;
+                  if (OldCode) {
+                    expectedSKUs.push(OldCode);
+                  } else {
+                    expectedSKUs.push(ItemCode);
+                  }
+                }
+              }
+
+              // sai chỗ này
+              else {
                 expectedCount += 1;
+
+                expectedSKUs.push(ItemCode);
               }
             }
           }
         }
       }
     });
-    return expectedCount;
+    return { expectedCount, expectedSKUs };
   };
 
   const processItem = (row, index) => {
-    addProgressUpdate({
-      productId: row["Product_id"],
-      date: row.Date,
-      store: row["Store ID - Unilever"],
-      status: "Đang kiểm tra",
-    });
-
     if (row["Product_id"] === undefined) {
       console.log(`Skipping row ${index + 2}: Product_id is undefined`);
       return null;
@@ -96,6 +115,7 @@ export const countStore = async (
 
     const rowDate = parseDate(row.Date);
     const storeId = row["Store ID - Unilever"];
+    const productId = row["Product_id"];
 
     if (!results.skuCounts[rowDate]) {
       results.skuCounts[rowDate] = {};
@@ -103,10 +123,14 @@ export const countStore = async (
     if (!results.skuCounts[rowDate][storeId]) {
       results.skuCounts[rowDate][storeId] = {
         actual: 0,
+        actualSKUs: [],
+        expected: 0,
+        expectedSKUs: [],
       };
     }
 
     results.skuCounts[rowDate][storeId].actual++;
+    results.skuCounts[rowDate][storeId].actualSKUs.push(productId);
 
     return { isValid: true, isOutOfRange: false, error: null };
   };
@@ -137,9 +161,8 @@ export const countStore = async (
     setBatchProgress(progress);
     addProgressUpdate({
       productId: `Batch ${Math.floor(processedItems / batchSize)}`,
-      date: new Date().toLocaleString(),
-      store: "N/A",
       status: `Processed (${progress}% complete)`,
+      progress: progress,
     });
 
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -152,22 +175,38 @@ export const countStore = async (
       Object.entries(results.skuCounts).map(async ([date, stores]) => {
         await Promise.all(
           Object.keys(stores).map(async (storeId) => {
-            const expected = await calculateExpectedSKUs(
+            const { expectedCount, expectedSKUs } = await calculateExpectedSKUs(
               date,
               storeId,
               checklistBatch
             );
-            if (!results.skuCounts[date][storeId].expected) {
-              results.skuCounts[date][storeId].expected = 0;
-            }
-            results.skuCounts[date][storeId].expected += expected;
+            results.skuCounts[date][storeId].expected += expectedCount;
+            results.skuCounts[date][storeId].expectedSKUs = [
+              ...results.skuCounts[date][storeId].expectedSKUs,
+              ...expectedSKUs,
+            ];
           })
         );
       })
     );
   }
 
-  console.log(results);
+  // Calculate missing and extra SKUs
+  Object.entries(results.skuCounts).forEach(([date, stores]) => {
+    Object.entries(stores).forEach(([storeId, data]) => {
+      // Ensure all SKUs are parsed as strings for consistent comparison
+      const actualSKUs = data.actualSKUs.map(String);
+      const expectedSKUs = data.expectedSKUs.map(String);
+
+      const actualSet = new Set(actualSKUs);
+      const expectedSet = new Set(expectedSKUs);
+
+      data.missingSKUs = expectedSKUs.filter((sku) => !actualSet.has(sku));
+      data.extraSKUs = actualSKUs.filter((sku) => !expectedSet.has(sku));
+
+      // Parse the sets to strings
+    });
+  });
 
   return results;
 };

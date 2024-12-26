@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "./components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
@@ -41,14 +41,13 @@ export default function App() {
   const [progressUpdates, setProgressUpdates] = useState([]);
   const forceUpdate = useForceUpdate();
   const [scoringResults, setScoringResults] = useState(null);
+  const addProgressUpdate = useCallback((update) => {
+    setCurrentProgress((prev) => [...prev, update]);
+    if (update.progress) {
+      setBatchProgress(update.progress);
+    }
+  }, []);
 
-  const addProgressUpdate = useCallback(
-    (update) => {
-      setProgressUpdates((prevUpdates) => [...prevUpdates, update]);
-      forceUpdate();
-    },
-    [forceUpdate]
-  );
   const handleExportResults = () => {
     if (results) {
       exportResults(results);
@@ -78,35 +77,6 @@ export default function App() {
     }
   };
 
-  // ====
-  // if (activeTab === CHECK_TYPES.DAILY) {
-  //     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
-  //       return;
-  //     }
-
-  //     setIsProcessing(true);
-  //     setResults(null);
-  //     setCurrentProgress([]); // Clear previous updates
-
-  //     try {
-  //       const [checklistData, rawData] = await Promise.all([
-  //         processExcelFile(files[FILE_TYPES.CHECKLIST]),
-  //         processExcelFile(files[FILE_TYPES.RAW_DATA]),
-  //       ]);
-
-  //       const processedChecklist = processChecklistData(checklistData);
-  //       const processedRawData = processRawData(rawData);
-
-  //       const validationResults = await validateData(
-  //         processedChecklist,
-  //         processedRawData,
-  //         addProgressUpdate,
-  //         setBatchProgress,
-  //         forceUpdate
-  //       );
-
-  // ===
-
   const handleScoringDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
       return;
@@ -114,6 +84,8 @@ export default function App() {
 
     setIsProcessing(true);
     setScoringResults(null);
+    setBatchProgress(0);
+    setCurrentProgress([]);
 
     try {
       const [checklistData, rawData] = await Promise.all([
@@ -234,18 +206,18 @@ export default function App() {
               </div>
 
               <Tabs>
-                <TabsList className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <TabsTrigger
+                <TabsList className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* <TabsTrigger
                     isActive={activeTab === CHECK_TYPES.DAILY}
                     onClick={() => setActiveTab(CHECK_TYPES.DAILY)}
                   >
                     Kiểm Tra Dữ Liệu Hàng Ngày
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                   <TabsTrigger
                     isActive={activeTab === CHECK_TYPES.SCORING}
                     onClick={() => setActiveTab(CHECK_TYPES.SCORING)}
                   >
-                    Kiểm Tra Dữ Liệu Chấm Điểm
+                    Kiểm Tra số lượng SKU
                   </TabsTrigger>
                   <TabsTrigger
                     isActive={activeTab === CHECK_TYPES.MONTHLY}
@@ -272,7 +244,8 @@ export default function App() {
                         onClick={handleDataCheck}
                         disabled={
                           (activeTab === CHECK_TYPES.DAILY &&
-                            !files[FILE_TYPES.DAILY]) ||
+                            (!files[FILE_TYPES.CHECKLIST] ||
+                              !files[FILE_TYPES.RAW_DATA])) ||
                           (activeTab === CHECK_TYPES.SCORING &&
                             (!files[FILE_TYPES.CHECKLIST] ||
                               !files[FILE_TYPES.RAW_DATA])) ||
@@ -298,6 +271,8 @@ export default function App() {
                 <ScoringResultDisplay
                   results={scoringResults}
                   isLoading={isProcessing}
+                  batchProgress={batchProgress}
+                  progressUpdates={progressUpdates}
                 />
               )}
 

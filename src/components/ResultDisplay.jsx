@@ -26,7 +26,6 @@ const ResultDisplay = ({
 
   useEffect(() => {
     setDisplayedUpdates((prevDisplayed) => {
-      console.log("setDisplayedUpdates", progressUpdates);
       const newUpdates = progressUpdates.slice(prevDisplayed.length);
       return [...prevDisplayed, ...newUpdates].slice(-100); // Keep last 100 updates
     });
