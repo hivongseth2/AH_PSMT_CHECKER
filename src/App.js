@@ -33,7 +33,7 @@ export default function App() {
     [FILE_TYPES.CHECKLIST]: null,
     [FILE_TYPES.RAW_DATA]: null,
   });
-  const [activeTab, setActiveTab] = useState(CHECK_TYPES.DAILY);
+  const [activeTab, setActiveTab] = useState(CHECK_TYPES.SCORING);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState(null);
   const [currentProgress, setCurrentProgress] = useState(null);
@@ -231,10 +231,8 @@ export default function App() {
                   <Card>
                     <CardHeader>
                       <CardTitle>
-                        {activeTab === CHECK_TYPES.DAILY &&
-                          "Kiểm Tra Dữ Liệu Hàng Ngày"}
                         {activeTab === CHECK_TYPES.SCORING &&
-                          "Kiểm Tra Dữ Liệu Chấm Điểm"}
+                          "Kiểm Tra số lượng SKU"}
                         {activeTab === CHECK_TYPES.MONTHLY &&
                           "Kiểm Tra Dữ Liệu Hàng Tháng"}
                       </CardTitle>
@@ -243,9 +241,9 @@ export default function App() {
                       <Button
                         onClick={handleDataCheck}
                         disabled={
-                          (activeTab === CHECK_TYPES.DAILY &&
-                            (!files[FILE_TYPES.CHECKLIST] ||
-                              !files[FILE_TYPES.RAW_DATA])) ||
+                          // (activeTab === CHECK_TYPES.DAILY &&
+                          //   (!files[FILE_TYPES.CHECKLIST] ||
+                          //     !files[FILE_TYPES.RAW_DATA])) ||
                           (activeTab === CHECK_TYPES.SCORING &&
                             (!files[FILE_TYPES.CHECKLIST] ||
                               !files[FILE_TYPES.RAW_DATA])) ||
@@ -255,13 +253,13 @@ export default function App() {
                       >
                         {isProcessing ? "Đang Kiểm Tra..." : "Bắt Đầu Kiểm Tra"}
                       </Button>
-                      <Button
+                      {/* <Button
                         onClick={handleExportResults}
                         disabled={!results}
                         className="ml-4"
                       >
                         Xuất Kết Quả
-                      </Button>
+                      </Button> */}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -276,14 +274,14 @@ export default function App() {
                 />
               )}
 
-              {activeTab !== CHECK_TYPES.SCORING && (
+              {/* {activeTab !== CHECK_TYPES.SCORING && (
                 <ResultDisplay
                   results={results}
                   isLoading={isProcessing}
                   progressUpdates={progressUpdates}
                   batchProgress={batchProgress}
                 />
-              )}
+              )} */}
             </CardContent>
           </Card>
         </div>

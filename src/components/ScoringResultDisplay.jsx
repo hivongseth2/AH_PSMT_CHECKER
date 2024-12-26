@@ -13,6 +13,7 @@ import { Button } from "./button";
 import { CheckCircle, XCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "./checkbox";
 import ProgressBar from "./ProgressBar";
+import ExportButton from "./exportBtnScore";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -85,10 +86,6 @@ const ScoringResultDisplay = ({
       [`${date}-${storeId}`]: !prev[`${date}-${storeId}`],
     }));
   };
-
-  useEffect(() => {
-    console.log("-------------------------------------------", results);
-  }, [results]);
 
   const filteredResults = useMemo(() => {
     if (!results || !results.skuCounts) return {};
@@ -183,6 +180,11 @@ const ScoringResultDisplay = ({
               <label htmlFor="showDiscrepancies" className="text-sm">
                 Chỉ hiển thị cửa hàng có sai lệch
               </label>
+              <ExportButton
+                results={results}
+                filteredResults={filteredResults}
+                showOnlyDiscrepancies={showOnlyDiscrepancies}
+              />
             </div>
           </div>
 
@@ -255,5 +257,3 @@ const ScoringResultDisplay = ({
 };
 
 export default ScoringResultDisplay;
-
-
