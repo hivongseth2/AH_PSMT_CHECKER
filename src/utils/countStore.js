@@ -30,7 +30,7 @@ export const countStore = async (
     let expectedCount = 0;
     let expectedSKUs = [];
     checklistBatch.forEach((item, index) => {
-      if (index > 11) {
+      if (index > 10) {
         const startDate = new Date(item["START DATE"]);
         const endDate = new Date(item["END DATE"]);
         const itemDate = new Date(date);
@@ -53,20 +53,49 @@ export const countStore = async (
             const NewCode = item["New code"];
             const isValidPair =
               (ItemCode && NewCode && ItemCode !== NewCode) || // Cặp ItemCode - NewCode hợp lệ
-              (ItemCode && OldCode && ItemCode !== OldCode); // Cặp ItemCode - OldCode hợp lệ
+              (ItemCode && OldCode && ItemCode !== OldCode); // Cặp ItemCode - OldCode hợp lệ4
+
+            if (
+              ItemCode == "68644561" &&
+              item["Store ID - Unilever"] == "STR-VINP-11986"
+            ) {
+              console.log("Bước 1: ", item);
+              console.log("Bước 1: ", isValidPair);
+            }
 
             if (
               normalizedItemDate >= normalizedStartDate &&
               normalizedItemDate <= normalizedEndDate
             ) {
+              if (
+                ItemCode == "68644561" &&
+                item["Store ID - Unilever"] == "STR-VINP-11986"
+              ) {
+                console.log("Bước 2: ", item);
+                console.log("Bước 2: ", isValidPair);
+              }
               // trong khoảng thời gian flex và 2 item khác nhau
               if (flexStartDate && flexEndDate && isValidPair) {
+                if (
+                  ItemCode == "68644561" &&
+                  item["Store ID - Unilever"] == "STR-VINP-11986"
+                ) {
+                  console.log("Bước 3: ", item);
+                  console.log("Bước 3: ", isValidPair);
+                }
                 if (
                   isWithinInterval(normalizedItemDate, {
                     start: flexStartDate.setHours(0, 0, 0, 0),
                     end: flexEndDate.setHours(0, 0, 0, 0),
                   })
                 ) {
+                  if (
+                    ItemCode == "68644561" &&
+                    item["Store ID - Unilever"] == "STR-VINP-11986"
+                  ) {
+                    console.log("Bước 4: ", item);
+                    console.log("Bước 4: ", isValidPair);
+                  }
                   expectedCount += 2;
                   expectedSKUs.push(ItemCode);
                   expectedSKUs.push(NewCode || OldCode);
@@ -74,17 +103,46 @@ export const countStore = async (
                   normalizedItemDate > flexEndDate.setHours(0, 0, 0, 0)
                 ) {
                   // sau flexable
-
+                  if (
+                    ItemCode == "68644561" &&
+                    item["Store ID - Unilever"] == "STR-VINP-11986"
+                  ) {
+                    console.log("Bước 5: ", item);
+                    console.log("Bước 5: ", isValidPair);
+                  }
                   expectedCount += 1;
                   if (NewCode) {
+                         if (
+                           ItemCode == "68644561" &&
+                           item["Store ID - Unilever"] == "STR-VINP-11986"
+                         ) {
+                           console.log("Bước 6: ", item);
+                           console.log("Bước 1: ", isValidPair);
+                         }
                     expectedSKUs.push(NewCode);
                   } else {
+                    if (ItemCode == "68644561") {
+                      console.log("push item flexable");
+
+                      console.log("ItemCode: ", ItemCode);
+                      console.log("NewCode: ", NewCode);
+                      console.log("OldCode: ", OldCode);
+                      console.log("isValidPair: ", isValidPair);
+                    }
                     expectedSKUs.push(ItemCode);
                   }
                 } else if (
                   normalizedItemDate < flexStartDate.setHours(0, 0, 0, 0)
                 ) {
                   //trước flexable
+                  if (ItemCode == "68644561") {
+                    console.log("trước flexable");
+
+                    console.log("ItemCode: ", ItemCode);
+                    console.log("NewCode: ", NewCode);
+                    console.log("OldCode: ", OldCode);
+                    console.log("isValidPair: ", isValidPair);
+                  }
                   expectedCount += 1;
                   if (OldCode) {
                     expectedSKUs.push(OldCode);
@@ -95,6 +153,14 @@ export const countStore = async (
 
                 // sai chỗ này
                 else {
+                  if (ItemCode == "68644561") {
+                    console.log("else cuối cùng");
+
+                    console.log("ItemCode: ", ItemCode);
+                    console.log("NewCode: ", NewCode);
+                    console.log("OldCode: ", OldCode);
+                    console.log("isValidPair: ", isValidPair);
+                  }
                   expectedCount += 1;
 
                   expectedSKUs.push(ItemCode);

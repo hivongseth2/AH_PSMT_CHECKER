@@ -254,7 +254,12 @@ const ScoringResultDisplay = ({
         </CardContent>
       </Card>
       {results.invalidRows && results.invalidRows.length > 0 && (
-        <InvalidRowsDisplay invalidRows={results.invalidRows} />
+        <div className="mt-4 pt-6">
+          <h2 class="text-md font-bold text-red-600 shadow-lg p-2 border-b-2 border-red-500">
+            Dữ liệu ngoại lệ
+          </h2>
+          <InvalidRowsDisplay invalidRows={results.invalidRows} />
+        </div>
       )}
     </div>
   );

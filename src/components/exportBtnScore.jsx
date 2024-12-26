@@ -9,7 +9,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Kết quả chấm điểm");
 
-    // Thêm tiêu đề
+    // Thêm tiêu đề cho sheet chính
     worksheet.addRow([
       "Ngày",
       "Mã Cửa hàng",
@@ -80,21 +80,36 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
       });
     });
 
-    // Thêm dữ liệu ngày không hợp lệ
+    // Thêm dữ liệu ngày không hợp lệ vào một sheet riêng
     if (results.invalidRows && results.invalidRows.length > 0) {
-      worksheet.addRow([]); // Thêm một dòng trống để phân tách
-      worksheet.addRow(["Dữ liệu không hợp lệ"]);
-      worksheet.addRow(["Dòng", "Lý do", "Dữ liệu"]);
-      results.invalidRows.forEach((row) => {
-        worksheet.addRow([
-          row.index,
-          row.reason,
-          JSON.stringify(row.data || "Không có dữ liệu"),
-        ]);
+      const invalidSheet = workbook.addWorksheet("Dữ liệu không hợp lệ");
+
+      // Thêm tiêu đề gồm "Dòng", "Lý do", và các key từ row.data
+      const sampleRowData = results.invalidRows[0]?.data || {};
+      const headers = [
+        "STT",
+        "Dòng tương ứng file RAW",
+        "Lý do",
+        ...Object.keys(sampleRowData),
+      ];
+
+      invalidSheet.addRow(headers);
+
+      // Thêm dữ liệu cho sheet không hợp lệ
+      results.invalidRows.forEach((row, index) => {
+        const rowData = row.data || {};
+        const rowValues = [
+          index + 1, // Thêm số dòng
+          row.index + 1,
+
+          row.reason || "", // Lý do
+          ...Object.keys(sampleRowData).map((key) => rowData[key] || ""), // Các giá trị từ row.data
+        ];
+        invalidSheet.addRow(rowValues);
       });
     }
 
-    // Định dạng worksheet
+    // Định dạng worksheet chính
     worksheet.columns.forEach((column, index) => {
       column.width = index === 7 ? 40 : 20; // Cột mô tả rộng hơn
       column.alignment = { vertical: "middle", wrapText: true };

@@ -49,7 +49,7 @@ export const processChecklistData = (data) => {
 export const processRawData = (data) => {
   const headers = data[0];
 
-  return data.slice(2).reduce((acc, row) => {
+  return data.slice(1).reduce((acc, row) => {
     const item = {};
     headers.forEach((header, index) => {
       if (RAW_DATA_HEADERS.includes(header)) {

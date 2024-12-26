@@ -8,13 +8,31 @@ const InvalidRowsDisplay = ({ invalidRows }) => {
 
   const getSummaryData = (data) => {
     if (!data) return "Không có dữ liệu";
+
     const {
       "Report of Month": month,
       "Store name": store,
+      "Product Name": productName,
+      Auditor,
+      "Auditor Code": AuditorCode,
       Target,
       Stock,
     } = data;
-    return `Tháng: ${month}, Cửa hàng: ${store}`;
+
+    return (
+      <div className="space-y-2">
+        <div>
+          <span className="font-semibold text-lg">Auditor:</span> {Auditor} (
+          <span className="italic">{AuditorCode}</span>)
+        </div>
+        <div>
+          <span className="font-semibold text-lg">Sản phẩm:</span> {productName}
+        </div>
+        <div>
+          <span className="font-semibold text-lg">Cửa hàng:</span> {store}
+        </div>
+      </div>
+    );
   };
 
   const handleRowClick = (row) => {
@@ -37,7 +55,6 @@ const InvalidRowsDisplay = ({ invalidRows }) => {
         <table className="table-auto w-full border-collapse border border-gray-300 text-xs">
           <thead>
             <tr>
-              <th className="border px-2 py-1 text-sm text-left">Thành phần</th>
               {headers.map((header, index) => (
                 <th key={index} className="border px-2 py-1 text-sm text-left">
                   {header}
@@ -47,7 +64,6 @@ const InvalidRowsDisplay = ({ invalidRows }) => {
           </thead>
           <tbody>
             <tr>
-              <td className="border px-2 py-1 text-sm">Giá trị</td>
               {values.map((value, index) => (
                 <td
                   key={index}
@@ -68,7 +84,7 @@ const InvalidRowsDisplay = ({ invalidRows }) => {
       <table className="table-auto w-full border-collapse border border-gray-300">
         <thead>
           <tr>
-            <th className="border px-4 py-2">Dòng</th>
+            <th className="border px-4 py-2">Dòng tương ứng file Raw</th>
             <th className="border px-4 py-2">Lý do</th>
             <th className="border px-4 py-2">Dữ liệu</th>
           </tr>
@@ -80,7 +96,7 @@ const InvalidRowsDisplay = ({ invalidRows }) => {
               onClick={() => handleRowClick(row)}
               className="cursor-pointer hover:bg-gray-100"
             >
-              <td className="border px-4 py-2">{row.index}</td>
+              <td className="border px-4 py-2">{row.index + 1}</td>
               <td className="border px-4 py-2">{row.reason}</td>
               <td className="border px-4 py-2">
                 <Tooltip content={JSON.stringify(row.data, null, 2)}>
