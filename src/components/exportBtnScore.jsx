@@ -100,7 +100,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
         const rowData = row.data || {};
         const rowValues = [
           index + 1, // Thêm số dòng
-          row.index + 1,
+          row.index ,
 
           row.reason || "", // Lý do
           ...Object.keys(sampleRowData).map((key) => rowData[key] || ""), // Các giá trị từ row.data

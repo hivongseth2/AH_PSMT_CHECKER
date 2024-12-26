@@ -96,7 +96,7 @@ const InvalidRowsDisplay = ({ invalidRows }) => {
               onClick={() => handleRowClick(row)}
               className="cursor-pointer hover:bg-gray-100"
             >
-              <td className="border px-4 py-2">{row.index + 1}</td>
+              <td className="border px-4 py-2">{row.index}</td>
               <td className="border px-4 py-2">{row.reason}</td>
               <td className="border px-4 py-2">
                 <Tooltip content={JSON.stringify(row.data, null, 2)}>

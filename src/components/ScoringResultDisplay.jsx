@@ -48,7 +48,7 @@ const ScoringResultDisplay = ({
   };
   const renderSkuDetails = ({ missingSKUs, extraSKUs }) => (
     <div className="p-2">
-      <h4 className="font-semibold mb-2">Chi tiết SKU:</h4>
+      {/* <h4 className="font-semibold mb-2">Chi tiết SKU:</h4> */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h5 className="font-medium text-red-500">Thiếu SKUs:</h5>
