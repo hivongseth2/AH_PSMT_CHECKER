@@ -20,11 +20,10 @@ export const validateData = async (
   const totalItems = rawData.length;
 
   const processItem = (row, index) => {
-    console.log(row, "000000000000000000000");
 
     // Update current progress
     addProgressUpdate({
-      productId: row["Product_id"],
+      productId: row["Product_id"] || row["Product ID"],
       date: row.Date,
       store: row["Store ID - Unilever"],
       status: "Đang kiểm tra",

@@ -7,9 +7,9 @@ import { saveAs } from "file-saver";
 const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Scoring Results");
+    const worksheet = workbook.addWorksheet("Kết quả chấm điểm");
 
-    // Add headers
+    // Thêm tiêu đề
     worksheet.addRow([
       "Ngày",
       "Mã Cửa hàng",
@@ -21,7 +21,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
       "Mô tả",
     ]);
 
-    // Style headers
+    // Định dạng tiêu đề
     worksheet.getRow(1).font = { bold: true };
     worksheet.getRow(1).fill = {
       type: "pattern",
@@ -29,7 +29,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
       fgColor: { argb: "FFD3D3D3" },
     };
 
-    // Add data
+    // Thêm dữ liệu
     const dataToExport = showOnlyDiscrepancies
       ? filteredResults
       : results.skuCounts;
@@ -44,7 +44,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
             storeData.expected === storeData.actual ? "Đạt" : "Không đạt",
           ];
 
-          // Add rows for missing SKUs
+          // Thêm các dòng cho SKU thiếu
           storeData.missingSKUs.forEach((sku) => {
             worksheet.addRow([
               ...baseRow,
@@ -54,7 +54,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
             ]);
           });
 
-          // Add rows for extra SKUs
+          // Thêm các dòng cho SKU thừa
           storeData.extraSKUs.forEach((sku) => {
             worksheet.addRow([
               ...baseRow,
@@ -64,7 +64,7 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
             ]);
           });
 
-          // If there are no missing or extra SKUs, add a single row
+          // Nếu không có SKU thiếu hoặc thừa, thêm một dòng duy nhất
           if (
             storeData.missingSKUs.length === 0 &&
             storeData.extraSKUs.length === 0
@@ -80,13 +80,27 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
       });
     });
 
-    // Style the worksheet
+    // Thêm dữ liệu ngày không hợp lệ
+    if (results.invalidRows && results.invalidRows.length > 0) {
+      worksheet.addRow([]); // Thêm một dòng trống để phân tách
+      worksheet.addRow(["Dữ liệu không hợp lệ"]);
+      worksheet.addRow(["Dòng", "Lý do", "Dữ liệu"]);
+      results.invalidRows.forEach((row) => {
+        worksheet.addRow([
+          row.index,
+          row.reason,
+          JSON.stringify(row.data || "Không có dữ liệu"),
+        ]);
+      });
+    }
+
+    // Định dạng worksheet
     worksheet.columns.forEach((column, index) => {
-      column.width = index === 7 ? 40 : 20; // Wider column for description
+      column.width = index === 7 ? 40 : 20; // Cột mô tả rộng hơn
       column.alignment = { vertical: "middle", wrapText: true };
     });
 
-    // Apply colors and borders
+    // Áp dụng màu sắc và đường viền
     worksheet.eachRow((row, rowNumber) => {
       row.eachCell((cell) => {
         cell.border = {
@@ -102,41 +116,25 @@ const ExportButton = ({ results, filteredResults, showOnlyDiscrepancies }) => {
         const skuType = row.getCell(7).value;
 
         if (status === "Đạt") {
-          row.getCell(5).fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FF92D050" },
-          };
-        } else {
-          row.getCell(5).fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFFF0000" },
-          };
+          row.getCell(5).font = { color: { argb: "FF008000" } }; // Màu xanh đậm
+        } else if (status === "Không đạt") {
+          row.getCell(5).font = { color: { argb: "FFFF0000" } }; // Màu đỏ
         }
 
         if (skuType === "Thiếu") {
-          row.getCell(7).fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFFF0000" }, // Red
-          };
+          row.getCell(7).font = { color: { argb: "FFFF0000" } }; // Màu đỏ
         } else if (skuType === "Thừa") {
-          row.getCell(7).fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FF92D050" }, // Green
-          };
+          row.getCell(7).font = { color: { argb: "FF008000" } }; // Màu xanh đậm
         }
       }
     });
 
-    // Generate and save the file
+    // Tạo và lưu tệp
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    saveAs(blob, `scoring_results_${new Date().toISOString()}.xlsx`);
+    saveAs(blob, `ket_qua_cham_diem_${new Date().toISOString()}.xlsx`);
   };
 
   return (

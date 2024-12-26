@@ -14,6 +14,7 @@ import { CheckCircle, XCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "./checkbox";
 import ProgressBar from "./ProgressBar";
 import ExportButton from "./exportBtnScore";
+import InvalidRowsDisplay from "./invalidRowResultDisplay";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -252,6 +253,9 @@ const ScoringResultDisplay = ({
           ))}
         </CardContent>
       </Card>
+      {results.invalidRows && results.invalidRows.length > 0 && (
+        <InvalidRowsDisplay invalidRows={results.invalidRows} />
+      )}
     </div>
   );
 };

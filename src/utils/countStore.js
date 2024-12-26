@@ -20,6 +20,7 @@ export const countStore = async (
     outOfRangeCount: 0,
     errors: [],
     skuCounts: {},
+    invalidRows: [], // Thêm trường này
   };
 
   const batchSize = 1000;
@@ -115,14 +116,35 @@ export const countStore = async (
   };
 
   const processItem = (row, index) => {
-    if (row["Product_id"] === undefined) {
+    const productId = row["Product ID"];
+    if (productId === undefined) {
       console.log(`Skipping row ${index + 2}: Product_id is undefined`);
+      return null;
+    }
+    if (!row.Date || row.Date.trim() === "") {
+      console.log(
+        `Skipping row ${index + 2}: Dữ liệu cột Date rỗng hoặc không xác định`
+      );
+      results.invalidRows.push({
+        index: index + 2,
+        reason: "Dữ liệu cột Date rỗng hoặc không xác định",
+        data: row,
+      });
       return null;
     }
 
     const rowDate = parseDate(row.Date);
+    if (!rowDate) {
+      console.log(`Skipping row ${index + 2}: Invalid date format`);
+      results.invalidRows.push({
+        index: index + 2,
+        reason: "Invalid date format",
+        data: row,
+      });
+      return null;
+    }
+
     const storeId = row["Store ID - Unilever"];
-    const productId = row["Product_id"];
 
     if (!results.skuCounts[rowDate]) {
       results.skuCounts[rowDate] = {};
@@ -147,10 +169,11 @@ export const countStore = async (
     for (let i = 0; i < batch.length; i++) {
       chunkResults.push(processItem(batch[i], startIndex + i));
     }
+
     return chunkResults;
   };
 
-  const rawDataGenerator = batchGenerator(rawData, batchSize);
+  const rawDataGenerator = await batchGenerator(rawData, batchSize);
   let processedItems = 0;
 
   for (const batch of rawDataGenerator) {

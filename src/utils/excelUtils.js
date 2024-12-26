@@ -47,7 +47,7 @@ export const processChecklistData = (data) => {
 };
 
 export const processRawData = (data) => {
-  const headers = data[1];
+  const headers = data[0];
 
   return data.slice(2).reduce((acc, row) => {
     const item = {};
@@ -57,7 +57,7 @@ export const processRawData = (data) => {
       }
     });
 
-    if (item["Product_id"] !== undefined) {
+    if (item["Product ID"] !== undefined) {
       acc.push(item);
     }
 
