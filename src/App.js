@@ -137,21 +137,7 @@ export default function App() {
         setBatchProgress
       );
 
-      setPromotionResults([
-        {
-          type: "info",
-          title: "Kết quả kiểm tra Promotion",
-          message: `
-            Dữ liệu hợp lệ: ${promotionResult.validCount}
-            Dữ liệu không hợp lệ: ${promotionResult.invalidCount}
-          `,
-        },
-        ...promotionResult.errors.map((error) => ({
-          type: "error",
-          title: `Lỗi ở dòng ${error.row}`,
-          message: error.message,
-        })),
-      ]);
+      setPromotionResults(promotionResult);
     } catch (error) {
       setPromotionResults([
         {
