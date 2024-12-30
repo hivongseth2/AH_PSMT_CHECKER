@@ -18,6 +18,8 @@ import {
   processExcelFile,
   processChecklistData,
   processRawData,
+  processChecklistPromotionData,
+  processPromotionRawData,
 } from "./utils/excelUtils";
 import { validateData } from "./utils/dataValidation";
 import { useForceUpdate } from "./hook/UseForceUpdate";
@@ -27,6 +29,8 @@ import {
 } from "./utils/dataProcessing";
 import ScoringResultDisplay from "./components/ScoringResultDisplay";
 import { countStore } from "./utils/countStore";
+import { checkPromotion } from "./utils/checkPromotionSF";
+import PromotionResultDisplay from "./components/PromotionResultDisplay";
 
 export default function App() {
   const [files, setFiles] = useState({
@@ -39,8 +43,8 @@ export default function App() {
   const [currentProgress, setCurrentProgress] = useState(null);
   const [batchProgress, setBatchProgress] = useState(0);
   const [progressUpdates, setProgressUpdates] = useState([]);
-  const forceUpdate = useForceUpdate();
   const [scoringResults, setScoringResults] = useState(null);
+  const [promotionResults, setPromotionResults] = useState(null);
   const addProgressUpdate = useCallback((update) => {
     setCurrentProgress((prev) => [...prev, update]);
     if (update.progress) {
@@ -67,6 +71,37 @@ export default function App() {
       ]);
     }
   }, [batchProgress]);
+  const FileUploadComponent = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      {activeTab === CHECK_TYPES.SCORING ? (
+        <>
+          <FileUpload
+            label="File Kiểm Tra (Checklist)"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
+          />
+          <FileUpload
+            label="File Dữ Liệu Thô (Raw Data)"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
+          />
+        </>
+      ) : (
+        <>
+          <FileUpload
+            label="File Kiểm Tra Promotion"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange(FILE_TYPES.PROMOTION)}
+          />
+          <FileUpload
+            label="File Dữ Liệu Thô Promotion"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange(FILE_TYPES.RAW_PROMOTION)}
+          />
+        </>
+      )}
+    </div>
+  );
 
   const handleFileChange = (type) => (event) => {
     if (event.target.files) {
@@ -74,6 +109,59 @@ export default function App() {
         ...prev,
         [type]: event.target.files[0],
       }));
+    }
+  };
+  const handlePromotionDataCheck = async () => {
+    if (!files[FILE_TYPES.PROMOTION] || !files[FILE_TYPES.RAW_PROMOTION]) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setPromotionResults(null);
+    setBatchProgress(0);
+    setCurrentProgress([]);
+
+    try {
+      const [checklistData, rawData] = await Promise.all([
+        processExcelFile(files[FILE_TYPES.PROMOTION], "PROMOTION"),
+        processExcelFile(files[FILE_TYPES.RAW_PROMOTION]),
+      ]);
+
+      const processedChecklist = processChecklistPromotionData(checklistData);
+      const processedRawData = processPromotionRawData(rawData);
+
+      const promotionResult = await checkPromotion(
+        processedChecklist,
+        processedRawData,
+        addProgressUpdate,
+        setBatchProgress
+      );
+
+      setPromotionResults([
+        {
+          type: "info",
+          title: "Kết quả kiểm tra Promotion",
+          message: `
+            Dữ liệu hợp lệ: ${promotionResult.validCount}
+            Dữ liệu không hợp lệ: ${promotionResult.invalidCount}
+          `,
+        },
+        ...promotionResult.errors.map((error) => ({
+          type: "error",
+          title: `Lỗi ở dòng ${error.row}`,
+          message: error.message,
+        })),
+      ]);
+    } catch (error) {
+      setPromotionResults([
+        {
+          type: "error",
+          title: "Lỗi xử lý",
+          message: error.message,
+        },
+      ]);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -89,7 +177,7 @@ export default function App() {
 
     try {
       const [checklistData, rawData] = await Promise.all([
-        processExcelFile(files[FILE_TYPES.CHECKLIST]),
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
         processExcelFile(files[FILE_TYPES.RAW_DATA]),
       ]);
 
@@ -118,64 +206,8 @@ export default function App() {
   };
 
   const handleDataCheck = async () => {
-    if (activeTab === CHECK_TYPES.DAILY) {
-      if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
-        return;
-      }
-
-      setIsProcessing(true);
-      setResults(null);
-      setCurrentProgress([]); // Clear previous updates
-
-      try {
-        const [checklistData, rawData] = await Promise.all([
-          processExcelFile(files[FILE_TYPES.CHECKLIST]),
-          processExcelFile(files[FILE_TYPES.RAW_DATA]),
-        ]);
-
-        const processedChecklist = processChecklistData(checklistData);
-        const processedRawData = processRawData(rawData);
-
-        const validationResults = await validateData(
-          processedChecklist,
-          processedRawData,
-          addProgressUpdate,
-          setBatchProgress,
-          forceUpdate
-        );
-
-        setResults([
-          {
-            type: "info",
-            title: "Thông tin tệp",
-            message: `Đã xử lý ${processedChecklist.length} dòng từ checklist và ${processedRawData.length} dòng từ dữ liệu thô`,
-          },
-          {
-            type: "info",
-            title: "Kết quả kiểm tra",
-            message: `
-            Dữ liệu hợp lệ: ${validationResults.validCount}
-            Dữ liệu không hợp lệ: ${validationResults.invalidCount}
-            Dữ liệu ngoài phạm vi: ${validationResults.outOfRangeCount}
-          `,
-          },
-          ...validationResults.errors.map((error) => ({
-            type: "error",
-            title: `Lỗi ở dòng ${error.row}`,
-            message: error.message,
-          })),
-        ]);
-      } catch (error) {
-        setResults([
-          {
-            type: "error",
-            title: "Lỗi xử lý",
-            message: error.message,
-          },
-        ]);
-      } finally {
-        setIsProcessing(false);
-      }
+    if (activeTab === CHECK_TYPES.PROMOTION) {
+      await handlePromotionDataCheck();
     } else if (activeTab === CHECK_TYPES.SCORING) {
       await handleScoringDataCheck();
     }
@@ -193,26 +225,37 @@ export default function App() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <FileUpload
-                  label="File Kiểm Tra (Checklist)"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
-                />
-                <FileUpload
-                  label="File Dữ Liệu Thô (Raw Data)"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
-                />
+                {activeTab === CHECK_TYPES.SCORING ? (
+                  <>
+                    <FileUpload
+                      label="File Kiểm Tra (Checklist)"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
+                    />
+                    <FileUpload
+                      label="File Dữ Liệu Thô (Raw Data)"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <FileUpload
+                      label="File Kiểm Tra Promotion"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileChange(FILE_TYPES.PROMOTION)}
+                    />
+                    <FileUpload
+                      label="File Dữ Liệu Thô Promotion"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileChange(FILE_TYPES.RAW_PROMOTION)}
+                    />
+                  </>
+                )}
               </div>
 
               <Tabs>
                 <TabsList className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* <TabsTrigger
-                    isActive={activeTab === CHECK_TYPES.DAILY}
-                    onClick={() => setActiveTab(CHECK_TYPES.DAILY)}
-                  >
-                    Kiểm Tra Dữ Liệu Hàng Ngày
-                  </TabsTrigger> */}
                   <TabsTrigger
                     isActive={activeTab === CHECK_TYPES.SCORING}
                     onClick={() => setActiveTab(CHECK_TYPES.SCORING)}
@@ -220,10 +263,10 @@ export default function App() {
                     Kiểm Tra số lượng SKU
                   </TabsTrigger>
                   <TabsTrigger
-                    isActive={activeTab === CHECK_TYPES.MONTHLY}
-                    onClick={() => setActiveTab(CHECK_TYPES.MONTHLY)}
+                    isActive={activeTab === CHECK_TYPES.PROMOTION}
+                    onClick={() => setActiveTab(CHECK_TYPES.PROMOTION)}
                   >
-                    Kiểm Tra Dữ Liệu Hàng Tháng
+                    Kiểm Tra Dữ Liệu Promotion
                   </TabsTrigger>
                 </TabsList>
 
@@ -233,17 +276,17 @@ export default function App() {
                       <CardTitle>
                         {activeTab === CHECK_TYPES.SCORING &&
                           "Kiểm Tra số lượng SKU"}
-                        {activeTab === CHECK_TYPES.MONTHLY &&
-                          "Kiểm Tra Dữ Liệu Hàng Tháng"}
+                        {activeTab === CHECK_TYPES.PROMOTION &&
+                          "Kiểm Tra Dữ Liệu Promotion"}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <Button
                         onClick={handleDataCheck}
                         disabled={
-                          // (activeTab === CHECK_TYPES.DAILY &&
-                          //   (!files[FILE_TYPES.CHECKLIST] ||
-                          //     !files[FILE_TYPES.RAW_DATA])) ||
+                          (activeTab === CHECK_TYPES.PROMOTION &&
+                            (!files[FILE_TYPES.PROMOTION] ||
+                              !files[FILE_TYPES.RAW_PROMOTION])) ||
                           (activeTab === CHECK_TYPES.SCORING &&
                             (!files[FILE_TYPES.CHECKLIST] ||
                               !files[FILE_TYPES.RAW_DATA])) ||
@@ -274,14 +317,14 @@ export default function App() {
                 />
               )}
 
-              {/* {activeTab !== CHECK_TYPES.SCORING && (
-                <ResultDisplay
-                  results={results}
+              {activeTab === CHECK_TYPES.PROMOTION && (
+                <PromotionResultDisplay
+                  results={promotionResults?.results}
                   isLoading={isProcessing}
-                  progressUpdates={progressUpdates}
                   batchProgress={batchProgress}
+                  invalidRows={promotionResults?.invalidRows || []}
                 />
-              )} */}
+              )}
             </CardContent>
           </Card>
         </div>

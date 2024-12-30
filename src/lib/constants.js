@@ -12,12 +12,14 @@ export const STORE_TYPES = {
 export const FILE_TYPES = {
   CHECKLIST: "checklist",
   RAW_DATA: "rawData",
+  PROMOTION: "promotion",
+  RAW_PROMOTION: "rawPromotion",
 };
 
 export const CHECK_TYPES = {
   DAILY: "daily",
   SCORING: "scoring",
-  MONTHLY: "monthly",
+  PROMOTION: "promotion",
 };
 
 export const CHECKLIST_HEADERS = [
@@ -67,6 +69,7 @@ export const RAW_DATA_HEADERS = [
   "PS Category ID",
   "PS Category",
   "Product_id",
+  "Audit status",
   "Product_name",
   "Vị trí",
   "Target",
@@ -116,6 +119,41 @@ export const RAW_DATA_HEADERS = [
   "SR Feedback",
 ];
 
+export const RAW_PROMOTION_DATA_HEADERS = [
+  "Report of Month",
+  "Loại",
+  "Date",
+  "Time",
+  "Phase",
+  "Store ID - Unilever",
+  "Store name",
+  "TYPESTORE",
+  "Customer ID",
+  "Customer",
+  "Supervisor",
+  "PS Category ID",
+  "PS Category",
+  "Product ID",
+  "Promotion ID",
+  "Product Name",
+  "Mechanic (Chương trình khuyến mãi)",
+  "Vị trí",
+  "Hiện diện sản phẩm (1/0)",
+  "Nội dung khuyến mãi (1/0)",
+  "Thông báo khuyến mãi (1/0)",
+  "Kết quả",
+  "Predefined Note",
+  "Comment",
+  "Reject (0/1)",
+  "Lý do",
+  "Team dự án revise",
+  "Team dự án phản hồi",
+  "Final reject",
+  "Region",
+  "Auditor",
+  "Auditor Code",
+  "SR Feedback",
+];
 export const DATE_FIELDS = [
   "START DATE",
   "END DATE",
