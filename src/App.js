@@ -319,7 +319,7 @@ export default function App() {
 
               {activeTab === CHECK_TYPES.PROMOTION && (
                 <PromotionResultDisplay
-                  results={promotionResults?.results}
+                  results={promotionResults}
                   isLoading={isProcessing}
                   batchProgress={batchProgress}
                   invalidRows={promotionResults?.invalidRows || []}

@@ -36,8 +36,6 @@ const PromotionResultDisplay = ({
     );
   }
 
-  console.log(results, "result");
-
   if (!results || results.length === 0) {
     return null;
   }

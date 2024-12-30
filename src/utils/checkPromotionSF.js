@@ -18,7 +18,6 @@ export const checkPromotion = async (
   const totalItems = rawData.length;
 
   const processItem = (row, index) => {
-    // console.log(row);
 
     const {
       Date: rawDate,
@@ -26,6 +25,8 @@ export const checkPromotion = async (
       Customer: customerName,
       "Promotion ID": promotionId,
       "Product ID": productId,
+      "Customer ID": customerId,
+      TYPESTORE: typeStore,
     } = row;
 
     if (!rawDate || rawDate.trim() === "") {
@@ -48,11 +49,6 @@ export const checkPromotion = async (
       return null;
     }
 
-    // console.log(checklist, "checklist");
-
-    // console.log(customerName, "customerName");
-    // console.log(promotionId, "promotionId");
-    // console.log(productId, "productId");
 
     const checklistItem = checklist.find((item, index) => {
       if (item["Promotion ID"] === undefined) {
@@ -62,27 +58,18 @@ export const checkPromotion = async (
 
       const endDate = new Date(item["END DATE"]);
       const date = new Date(rowDate);
-
-      console.log(startDate, date, endDate);
-
       return (
-        item["Customer ID"] === customerName &&
-        item["Promotion ID"] === promotionId &&
-        item["Item code"] == productId &&
-        item.stores[storeId] === "Y" &&
+        item["Customer ID"] == customerId &&
+        item["Promotion ID"] == promotionId &&
+        String(item["Item code"]) == String(productId) &&
+        item.stores[typeStore] == "Y" &&
         isWithinInterval(date, {
           start: startDate,
           end: endDate,
         })
       );
     });
-    console.error("Customer ID:", customerName);
-    console.error("Promotion ID:", promotionId);
-    console.error("Item code:", productId);
-    console.error("Store ID:", storeId);
-    console.error("Row Date:", rowDate);
 
-    console.log("checklistItem", checklistItem);
 
     if (checklistItem) {
       results.validCount++;
