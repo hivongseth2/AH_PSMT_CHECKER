@@ -1,4 +1,3 @@
-/* eslint-disable no-loop-func */
 import { isWithinInterval, parseISO, format } from "date-fns";
 import { ERROR_MESSAGES } from "../config/message";
 import { parseDate } from "./dateUtils";
@@ -16,11 +15,45 @@ export const checkPromotion = async (
     invalidRows: [],
     groupedData: {},
     dailySummary: {},
+    storeVisits: {}, // Track store visits by date
   };
 
   const totalItems = rawData.length;
 
-  // Group raw data by date and storeType
+  // First, group store visits by date and store type
+  const storeVisitsMap = new Map();
+  rawData.forEach((row) => {
+    const {
+      Date: rawDate,
+      "Store ID - Unilever": storeId,
+      TYPESTORE: typeStore,
+    } = row;
+
+    if (rawDate && rawDate.trim() !== "") {
+      const rowDate = parseDate(rawDate);
+      if (!isNaN(rowDate.getTime())) {
+        const dateKey = format(rowDate, "yyyy-MM-dd");
+        const visitKey = `${dateKey}_${typeStore}`;
+
+        if (!storeVisitsMap.has(visitKey)) {
+          storeVisitsMap.set(visitKey, new Map());
+        }
+        const storeMap = storeVisitsMap.get(visitKey);
+        storeMap.set(storeId, (storeMap.get(storeId) || 0) + 1); // Count each store visit
+      }
+    }
+  });
+
+  // Convert store visits map to results structure
+  for (const [visitKey, storeMap] of storeVisitsMap) {
+    const [dateKey, typeStore] = visitKey.split("_");
+    if (!results.storeVisits[dateKey]) {
+      results.storeVisits[dateKey] = {};
+    }
+    results.storeVisits[dateKey][typeStore] = Array.from(storeMap.keys());
+  }
+
+  // Group raw data by promotion, customer, and date
   rawData.forEach((row, index) => {
     const {
       Date: rawDate,
@@ -53,7 +86,7 @@ export const checkPromotion = async (
     }
 
     const dateKey = format(rowDate, "yyyy-MM-dd");
-    const groupKey = `${dateKey}_${typeStore}`;
+    const groupKey = `${promotionId}_${customerName}_${dateKey}`;
 
     if (!results.groupedData[groupKey]) {
       results.groupedData[groupKey] = [];
@@ -64,135 +97,127 @@ export const checkPromotion = async (
   // Process grouped data
   let processedCount = 0;
   for (const [groupKey, rows] of Object.entries(results.groupedData)) {
-    console.log(groupKey, "groupKey");
-
-    const [dateKey, typeStore] = groupKey.split("_");
+    const [promotionId, customerName, dateKey] = groupKey.split("_");
     const date = parseISO(dateKey);
-    const validPromotions = new Map();
-    const invalidPromotions = new Map();
 
-    rows.forEach((row, rowIndex) => {
-      const {
-        "Promotion ID": promotionId,
-        "Product ID": productId,
-        "Customer ID": customerId,
-        TYPESTORE: typeStore,
-        "Store ID - Unilever": storeId,
-      } = row;
+    let actualCount = rows.length;
 
-      const checklistItem = checklist.find((item) => {
-        if (item["Promotion ID"] === undefined) {
-          return false;
-        }
-        const startDate = new Date(item["START DATE"]);
-        const endDate = new Date(item["END DATE"]);
-        return (
-          item["Customer ID"] == customerId &&
-          item["Promotion ID"] == promotionId &&
-          String(item["Item code"]) == String(productId) &&
-          // eslint-disable-next-line eqeqeq
-          item.stores[typeStore] == "Y" &&
-          isWithinInterval(date, { start: startDate, end: endDate })
-        );
-      });
+    let expectedCount = 0;
 
-      if (checklistItem) {
-        if (!validPromotions.has(promotionId)) {
-          validPromotions.set(promotionId, []);
-        }
-        validPromotions.get(promotionId).push({
-          productId,
-          customerId,
-          typeStore,
-          storeId,
-        });
-        results.validCount++;
-      } else {
-        if (!invalidPromotions.has(promotionId)) {
-          invalidPromotions.set(promotionId, []);
-        }
-        invalidPromotions.get(promotionId).push({
-          productId,
-          customerId,
-          typeStore,
-          storeId,
-        });
-        results.invalidCount++;
-        const error = {
-          row: processedCount + rowIndex + 2,
-          message: ERROR_MESSAGES.INVALID_PROMOTION(
-            productId,
-            dateKey,
-            storeId,
-            promotionId
-          ),
-        };
-        results.errors.push(error);
-      }
+    // Get unique store types visited on this date
+    const storeTypesVisited = new Set(rows.map((row) => row.TYPESTORE));
+
+    // Calculate expected count based on store visits
+    const expectedStores = new Set();
+    const actualStores = new Map(); // Use Map to count stores and detect duplicates
+
+    rows.forEach((row) => {
+      const storeId = row["Store ID - Unilever"];
+      actualStores.set(storeId, (actualStores.get(storeId) || 0) + 1); // Track store visit counts
     });
-    console.log(typeStore);
 
-    console.log(rows);
-
-    // Compare with expected count
-    const expectedPromotions = new Map();
     checklist.forEach((item) => {
       if (
-        item.stores[typeStore] === "Y" &&
+        item["Promotion ID"] === promotionId &&
+        item["Customer"] === customerName &&
         isWithinInterval(date, {
           start: new Date(item["START DATE"]),
           end: new Date(item["END DATE"]),
         })
       ) {
-        expectedPromotions.set(item["Promotion ID"], {
-          productId: item["Item code"],
-          customerId: item["Customer ID"],
-          typeStore: typeStore,
+        // For each store type that was visited
+        storeTypesVisited.forEach((storeType) => {
+          if (
+            item.stores[storeType] === "Y" &&
+            results.storeVisits[dateKey]?.[storeType]
+          ) {
+            // Add the number of unique stores visited for this store type
+            expectedCount += results.storeVisits[dateKey][storeType].length;
+            results.storeVisits[dateKey][storeType].forEach((store) =>
+              expectedStores.add(store)
+            );
+          }
         });
       }
     });
 
-    console.log("expectedPromotions", expectedPromotions);
+    // Check for duplicates
 
-    const missingPromotions = [...expectedPromotions].filter(
-      ([id, data]) => !validPromotions.has(id)
-    );
-    const extraPromotions = [...validPromotions].filter(
-      ([id, data]) => !expectedPromotions.has(id)
-    );
+    results.validCount += actualCount;
 
+    // Compare actual and expected counts
+    if (
+      actualCount !== expectedCount ||
+      actualStores.size !== expectedStores.size
+    ) {
+      const missingStores = [...expectedStores].filter(
+        (x) => !actualStores.has(x)
+      );
+      let excessStores = [...actualStores.keys()].filter(
+        (x) => !expectedStores.has(x)
+      );
+
+      const duplicateStores = [];
+      actualStores.forEach((count, storeId) => {
+        if (count > 1) {
+          duplicateStores.push(storeId); // Store IDs with more than 1 visit
+        }
+      });
+
+      if (duplicateStores.length > 0) {
+        console.log(duplicateStores);
+
+        excessStores = [...excessStores, ...duplicateStores];
+      }
+
+      const error = {
+        date: dateKey,
+        promotionId,
+        customerName,
+        message: `Mismatch in promotion count. Expected: ${expectedCount}, Actual: ${actualCount}`,
+        difference: actualCount - expectedCount,
+        storeVisits: results.storeVisits[dateKey],
+        missingStores,
+        excessStores,
+      };
+      results.errors.push(error);
+    }
+    const duplicateStores = [];
+    actualStores.forEach((count, storeId) => {
+      if (count > 1) {
+        duplicateStores.push(storeId); // Store IDs with more than 1 visit
+      }
+    });
+
+    // Update daily summary
     if (!results.dailySummary[dateKey]) {
       results.dailySummary[dateKey] = {};
     }
-    results.dailySummary[dateKey][typeStore] = {
-      actualCount: validPromotions.size,
-      expectedCount: expectedPromotions.size,
-      missingPromotions,
-      extraPromotions,
-      validPromotions: Object.fromEntries(validPromotions),
-      invalidPromotions: Object.fromEntries(invalidPromotions),
+    results.dailySummary[dateKey][promotionId] = {
+      customerName,
+      actualCount,
+      expectedCount,
+      difference: actualCount - expectedCount,
+      storeVisits: results.storeVisits[dateKey],
+      storeTypesVisited: Array.from(storeTypesVisited),
+      missingStores: [...expectedStores].filter((x) => !actualStores.has(x)),
+      excessStores: [
+        ...actualStores.keys().filter((x) => !expectedStores.has(x)),
+        ...duplicateStores, // Add duplicate stores to excess stores
+      ],
     };
-
-    if (missingPromotions.length > 0 || extraPromotions.length > 0) {
-      results.errors.push({
-        date: dateKey,
-        storeType: typeStore,
-        message: `Mismatch in promotion count for ${typeStore}. Expected: ${expectedPromotions.size}, Actual: ${validPromotions.size}`,
-        missingPromotions,
-        extraPromotions,
-      });
-    }
 
     processedCount += rows.length;
     const progress = Math.round((processedCount / totalItems) * 100);
     setBatchProgress(progress);
     addProgressUpdate({
-      productId: `Date ${dateKey}, Store Type ${typeStore}`,
+      productId: `${promotionId} - ${customerName}`,
       status: `Processed (${progress}% complete)`,
       progress: progress,
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
+
   console.log(results);
 
   return results;
