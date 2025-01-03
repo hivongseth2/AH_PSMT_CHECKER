@@ -1,19 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "./components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import FileUpload from "./components/FileUpload";
-import ResultDisplay from "./components/ResultDisplay";
-import { exportResults } from "./utils/exportResult";
+import ScoringResultDisplay from "./components/ScoringResultDisplay";
+import PromotionResultDisplay from "./components/PromotionResultDisplay";
 import ErrorBoundary from "./components/errorBoundary";
-
-import {
-  CHECK_TYPES,
-  FILE_TYPES,
-  CHECKLIST_HEADERS,
-  RAW_DATA_HEADERS,
-  STORE_TYPES,
-} from "./lib/constants";
+import { CHECK_TYPES, FILE_TYPES } from "./lib/constants";
 import {
   processExcelFile,
   processChecklistData,
@@ -21,16 +14,8 @@ import {
   processChecklistPromotionData,
   processPromotionRawData,
 } from "./utils/excelUtils";
-import { validateData } from "./utils/dataValidation";
-import { useForceUpdate } from "./hook/UseForceUpdate";
-import {
-  processRawDataForScoring,
-  compareActualVsExpected,
-} from "./utils/dataProcessing";
-import ScoringResultDisplay from "./components/ScoringResultDisplay";
 import { countStore } from "./utils/countStore";
 import { checkPromotion } from "./utils/checkPromotionSF";
-import PromotionResultDisplay from "./components/PromotionResultDisplay";
 
 export default function App() {
   const [files, setFiles] = useState({
@@ -39,69 +24,10 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState(CHECK_TYPES.SCORING);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [results, setResults] = useState(null);
-  const [currentProgress, setCurrentProgress] = useState(null);
-  const [batchProgress, setBatchProgress] = useState(0);
-  const [progressUpdates, setProgressUpdates] = useState([]);
   const [scoringResults, setScoringResults] = useState(null);
   const [promotionResults, setPromotionResults] = useState(null);
-  const addProgressUpdate = useCallback((update) => {
-    setCurrentProgress((prev) => [...prev, update]);
-    if (update.progress) {
-      setBatchProgress(update.progress);
-    }
-  }, []);
-
-  const handleExportResults = () => {
-    if (results) {
-      exportResults(results);
-    }
-  };
-
-  React.useEffect(() => {
-    if (batchProgress > 0) {
-      setProgressUpdates((prevUpdates) => [
-        ...prevUpdates,
-        {
-          productId: `Batch ${batchProgress}`,
-          date: new Date().toLocaleString(),
-          store: "N/A",
-          status: "Processed",
-        },
-      ]);
-    }
-  }, [batchProgress]);
-  const FileUploadComponent = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-      {activeTab === CHECK_TYPES.SCORING ? (
-        <>
-          <FileUpload
-            label="File Kiểm Tra (Checklist)"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
-          />
-          <FileUpload
-            label="File Dữ Liệu Thô (Raw Data)"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
-          />
-        </>
-      ) : (
-        <>
-          <FileUpload
-            label="File Kiểm Tra Promotion"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange(FILE_TYPES.PROMOTION)}
-          />
-          <FileUpload
-            label="File Dữ Liệu Thô Promotion"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange(FILE_TYPES.RAW_PROMOTION)}
-          />
-        </>
-      )}
-    </div>
-  );
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [currentProgress, setCurrentProgress] = useState([]);
 
   const handleFileChange = (type) => (event) => {
     if (event.target.files) {
@@ -111,47 +37,13 @@ export default function App() {
       }));
     }
   };
-  const handlePromotionDataCheck = async () => {
-    if (!files[FILE_TYPES.PROMOTION] || !files[FILE_TYPES.RAW_PROMOTION]) {
-      return;
+
+  const addProgressUpdate = useCallback((update) => {
+    setCurrentProgress((prev) => [...prev, update]);
+    if (update.progress) {
+      setBatchProgress(update.progress);
     }
-
-    setIsProcessing(true);
-    setPromotionResults(null);
-    setBatchProgress(0);
-    setCurrentProgress([]);
-
-    try {
-      const [checklistData, rawData] = await Promise.all([
-        processExcelFile(files[FILE_TYPES.PROMOTION], "PROMOTION"),
-        processExcelFile(files[FILE_TYPES.RAW_PROMOTION], "Worksheet1"),
-      ]);
-
-      const processedChecklist = processChecklistPromotionData(checklistData);
-      const processedRawData = processPromotionRawData(rawData);
-
-      console.log("processedRawData", processedRawData);
-
-      const promotionResult = await checkPromotion(
-        processedChecklist,
-        processedRawData,
-        addProgressUpdate,
-        setBatchProgress
-      );
-
-      setPromotionResults(promotionResult);
-    } catch (error) {
-      setPromotionResults([
-        {
-          type: "error",
-          title: "Lỗi xử lý",
-          message: error.message,
-        },
-      ]);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  }, []);
 
   const handleScoringDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
@@ -193,6 +85,46 @@ export default function App() {
     }
   };
 
+  const handlePromotionDataCheck = async () => {
+    if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setPromotionResults(null);
+    setBatchProgress(0);
+    setCurrentProgress([]);
+
+    try {
+      const [checklistData, rawData] = await Promise.all([
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
+        processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
+      ]);
+
+      const processedChecklist = processChecklistPromotionData(checklistData);
+      const processedRawData = processPromotionRawData(rawData);
+
+      const promotionResult = await checkPromotion(
+        processedChecklist,
+        processedRawData,
+        addProgressUpdate,
+        setBatchProgress
+      );
+
+      setPromotionResults(promotionResult);
+    } catch (error) {
+      setPromotionResults([
+        {
+          type: "error",
+          title: "Lỗi xử lý",
+          message: error.message,
+        },
+      ]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDataCheck = async () => {
     if (activeTab === CHECK_TYPES.PROMOTION) {
       await handlePromotionDataCheck();
@@ -213,33 +145,18 @@ export default function App() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {activeTab === CHECK_TYPES.SCORING ? (
-                  <>
-                    <FileUpload
-                      label="File Kiểm Tra (Checklist)"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
-                    />
-                    <FileUpload
-                      label="File Dữ Liệu Thô (Raw Data)"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <FileUpload
-                      label="File Kiểm Tra Promotion"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileChange(FILE_TYPES.PROMOTION)}
-                    />
-                    <FileUpload
-                      label="File Dữ Liệu Thô Promotion"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileChange(FILE_TYPES.RAW_PROMOTION)}
-                    />
-                  </>
-                )}
+                <FileUpload
+                  label="File Kiểm Tra (Checklist)"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
+                  file={files[FILE_TYPES.CHECKLIST]}
+                />
+                <FileUpload
+                  label="File Dữ Liệu Thô (Raw Data)"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
+                  file={files[FILE_TYPES.RAW_DATA]}
+                />
               </div>
 
               <Tabs>
@@ -272,25 +189,14 @@ export default function App() {
                       <Button
                         onClick={handleDataCheck}
                         disabled={
-                          (activeTab === CHECK_TYPES.PROMOTION &&
-                            (!files[FILE_TYPES.PROMOTION] ||
-                              !files[FILE_TYPES.RAW_PROMOTION])) ||
-                          (activeTab === CHECK_TYPES.SCORING &&
-                            (!files[FILE_TYPES.CHECKLIST] ||
-                              !files[FILE_TYPES.RAW_DATA])) ||
+                          !files[FILE_TYPES.CHECKLIST] ||
+                          !files[FILE_TYPES.RAW_DATA] ||
                           isProcessing
                         }
                         isLoading={isProcessing}
                       >
                         {isProcessing ? "Đang Kiểm Tra..." : "Bắt Đầu Kiểm Tra"}
                       </Button>
-                      {/* <Button
-                        onClick={handleExportResults}
-                        disabled={!results}
-                        className="ml-4"
-                      >
-                        Xuất Kết Quả
-                      </Button> */}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -301,7 +207,7 @@ export default function App() {
                   results={scoringResults}
                   isLoading={isProcessing}
                   batchProgress={batchProgress}
-                  progressUpdates={progressUpdates}
+                  progressUpdates={currentProgress}
                 />
               )}
 

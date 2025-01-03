@@ -22,7 +22,6 @@ export const checkPromotion = async (
 
   // First, group store visits by date and store type
   const storeVisitsMap = new Map();
-  console.log(rawData);
 
   rawData.forEach((row) => {
     const {
@@ -46,6 +45,7 @@ export const checkPromotion = async (
     }
   });
 
+  console.log(storeVisitsMap, "storeVisitsMap");
 
   // Convert store visits map to results structure
   for (const [visitKey, storeMap] of storeVisitsMap) {
@@ -56,6 +56,7 @@ export const checkPromotion = async (
     results.storeVisits[dateKey][typeStore] = Array.from(storeMap.keys());
   }
 
+  console.log(results.storeVisits, "result storeVisitsMap");
 
   // Group raw data by promotion, customer, and date
   rawData.forEach((row, index) => {
@@ -63,7 +64,7 @@ export const checkPromotion = async (
       Date: rawDate,
       "Store ID - Unilever": storeId,
       Customer: customerName,
-     "Promotion ID": promotionId,
+      "Promotion ID": promotionId,
       "Product ID": productId,
       "Customer ID": customerId,
       TYPESTORE: typeStore,
@@ -97,6 +98,8 @@ export const checkPromotion = async (
     }
     results.groupedData[groupKey].push(row);
   });
+
+  console.log(results.groupedData, "groupedData");
 
   // Process grouped data
   let processedCount = 0;
