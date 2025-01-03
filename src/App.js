@@ -124,11 +124,13 @@ export default function App() {
     try {
       const [checklistData, rawData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.PROMOTION], "PROMOTION"),
-        processExcelFile(files[FILE_TYPES.RAW_PROMOTION]),
+        processExcelFile(files[FILE_TYPES.RAW_PROMOTION], "Worksheet1"),
       ]);
 
       const processedChecklist = processChecklistPromotionData(checklistData);
       const processedRawData = processPromotionRawData(rawData);
+
+      console.log("processedRawData", processedRawData);
 
       const promotionResult = await checkPromotion(
         processedChecklist,
@@ -164,7 +166,7 @@ export default function App() {
     try {
       const [checklistData, rawData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
-        processExcelFile(files[FILE_TYPES.RAW_DATA]),
+        processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
       ]);
 
       const processedChecklist = processChecklistData(checklistData);

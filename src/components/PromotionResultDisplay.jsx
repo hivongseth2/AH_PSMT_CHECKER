@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Download,
-  Info,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 import ProgressBar from "./ProgressBar";
 import {
@@ -29,15 +30,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./tooltipV2";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import StoreTypesTooltip from "./promotionTooltip";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./collapsible";
 
 const PromotionResultDisplay = ({ results, isLoading, batchProgress }) => {
   const [filter, setFilter] = useState("");
@@ -45,38 +45,52 @@ const PromotionResultDisplay = ({ results, isLoading, batchProgress }) => {
     key: null,
     direction: "ascending",
   });
+  const [expandedDates, setExpandedDates] = useState(new Set());
 
-  const flattenedData = useMemo(() => {
-    if (!results || !results.dailySummary) return [];
-    return Object.entries(results.dailySummary).flatMap(([date, promotions]) =>
-      Object.entries(promotions).map(([promotionId, data]) => ({
-        date,
-        promotionId,
-        ...data,
-      }))
+  const groupedData = useMemo(() => {
+    if (!results || !results.dailySummary) return {};
+    return Object.entries(results.dailySummary).reduce(
+      (acc, [date, promotions]) => {
+        acc[date] = Object.entries(promotions).map(([promotionId, data]) => ({
+          date,
+          promotionId,
+          ...data,
+        }));
+        return acc;
+      },
+      {}
     );
   }, [results]);
 
   const filteredData = useMemo(() => {
-    return flattenedData.filter(
-      (item) =>
-        item.date.toLowerCase().includes(filter.toLowerCase()) ||
-        item.promotionId.toLowerCase().includes(filter.toLowerCase()) ||
-        item.customerName.toLowerCase().includes(filter.toLowerCase())
-    );
-  }, [flattenedData, filter]);
+    return Object.entries(groupedData).reduce((acc, [date, promotions]) => {
+      const filteredPromotions = promotions.filter(
+        (item) =>
+          item.date.toLowerCase().includes(filter.toLowerCase()) ||
+          item.promotionId.toLowerCase().includes(filter.toLowerCase()) ||
+          item.customerName.toLowerCase().includes(filter.toLowerCase())
+      );
+      if (filteredPromotions.length > 0) {
+        acc[date] = filteredPromotions;
+      }
+      return acc;
+    }, {});
+  }, [groupedData, filter]);
 
   const sortedData = useMemo(() => {
     if (!sortConfig.key) return filteredData;
-    return [...filteredData].sort((a, b) => {
-      if (a[sortConfig.key] < b[sortConfig.key]) {
-        return sortConfig.direction === "ascending" ? -1 : 1;
-      }
-      if (a[sortConfig.key] > b[sortConfig.key]) {
-        return sortConfig.direction === "ascending" ? 1 : -1;
-      }
-      return 0;
-    });
+    return Object.entries(filteredData).reduce((acc, [date, promotions]) => {
+      acc[date] = [...promotions].sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === "ascending" ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === "ascending" ? 1 : -1;
+        }
+        return 0;
+      });
+      return acc;
+    }, {});
   }, [filteredData, sortConfig]);
 
   const requestSort = (key) => {
@@ -115,20 +129,22 @@ const PromotionResultDisplay = ({ results, isLoading, batchProgress }) => {
       "Cửa hàng thừa",
     ]);
 
-    sortedData.forEach((item) => {
-      worksheet.addRow([
-        item.date,
-        item.promotionId,
-        item.customerName,
-        item.expectedCount,
-        item.actualCount,
-        item.difference,
-        item.difference === 0 ? "Đủ" : item.difference > 0 ? "Thừa" : "Thiếu",
-        item.storeTypesVisited.join(", "),
-        item.missingStores.join(", "),
-        item.excessStores.join(", "),
-      ]);
-    });
+    Object.values(sortedData)
+      .flat()
+      .forEach((item) => {
+        worksheet.addRow([
+          item.date,
+          item.promotionId,
+          item.customerName,
+          item.expectedCount,
+          item.actualCount,
+          item.difference,
+          item.difference === 0 ? "Đủ" : item.difference > 0 ? "Thừa" : "Thiếu",
+          item.storeTypesVisited.join(", "),
+          item.missingStores.join(", "),
+          item.excessStores.join(", "),
+        ]);
+      });
 
     worksheet.getRow(1).font = { bold: true };
     worksheet.columns.forEach((column) => {
@@ -137,6 +153,18 @@ const PromotionResultDisplay = ({ results, isLoading, batchProgress }) => {
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), "promotion_results.xlsx");
+  };
+
+  const toggleDateExpansion = (date) => {
+    setExpandedDates((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(date)) {
+        newSet.delete(date);
+      } else {
+        newSet.add(date);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -194,217 +222,227 @@ const PromotionResultDisplay = ({ results, isLoading, batchProgress }) => {
         </div>
 
         <ScrollArea className="h-[600px] border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">
-                  <Button variant="ghost" onClick={() => requestSort("date")}>
-                    Ngày {getSortIcon("date")}
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[150px]">
-                  <Button
-                    variant="ghost"
-                    onClick={() => requestSort("promotionId")}
+          <div className="w-full">
+            {Object.entries(sortedData).map(([date, promotions]) => {
+              const hasError = promotions.some(
+                (item) => item.missingStores.length > 0 || item.difference !== 0
+              );
+
+              return (
+                <div key={date} className="border-b last:border-b-0">
+                  <Collapsible
+                    open={expandedDates.has(date)}
+                    onOpenChange={() => toggleDateExpansion(date)}
                   >
-                    Mã Promotion {getSortIcon("promotionId")}
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[200px]">
-                  <Button
-                    variant="ghost"
-                    onClick={() => requestSort("customerName")}
-                  >
-                    Khách hàng {getSortIcon("customerName")}
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[100px] text-right">
-                  <Button
-                    variant="ghost"
-                    onClick={() => requestSort("expectedCount")}
-                  >
-                    Kỳ vọng {getSortIcon("expectedCount")}
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[100px] text-right">
-                  <Button
-                    variant="ghost"
-                    onClick={() => requestSort("actualCount")}
-                  >
-                    Thực tế {getSortIcon("actualCount")}
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[100px] text-right">
-                  <Button
-                    variant="ghost"
-                    onClick={() => requestSort("difference")}
-                  >
-                    Chênh lệch {getSortIcon("difference")}
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[100px]">Trạng thái</TableHead>
-                <TableHead className="w-[200px]">Loại cửa hàng</TableHead>
-                <TableHead className="w-[100px]">Chi tiết</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedData.map((item, index) => (
-                <TableRow
-                  key={index}
-                  className={item.missingStores.length > 0 ? "bg-red-100" : ""}
-                >
-                  <TableCell>{item.date}</TableCell>
-                  <TableCell>{item.promotionId}</TableCell>
-                  <TableCell>{item.customerName}</TableCell>
-                  <TableCell className="text-right">
-                    {item.expectedCount}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {item.actualCount}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {item.difference}
-                  </TableCell>
-                  <TableCell>
-                    {item.difference === 0 ? (
-                      <Badge
-                        variant="success"
-                        className="bg-green-100 text-green-800"
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className={`w-full justify-start p-2 ${
+                          hasError ? "text-red-500" : ""
+                        }`}
                       >
-                        Đủ
-                      </Badge>
-                    ) : item.difference > 0 ? (
-                      <Badge
-                        variant="warning"
-                        className="bg-yellow-100 text-yellow-800"
-                      >
-                        Thừa
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="destructive"
-                        className="bg-red-100 text-red-800"
-                      >
-                        Thiếu
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StoreTypesTooltip storeTypes={item.storeTypesVisited} />
-                  </TableCell>
-                  <TableCell>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          Xem chi tiết
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-[900px] w-full px-8 py-6 bg-white rounded-lg shadow-lg">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-semibold">
-                            {item.promotionId}
-                          </DialogTitle>
-                          <DialogDescription className="text-gray-600">
-                            <div className="flex flex-wrap gap-4">
-                              <p className="font-medium text-blue-600">
-                                <span className="font-semibold">Ngày:</span>{" "}
-                                {item.date}
-                              </p>
-                            </div>
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-6">
-                          {/* Thông tin chung */}
-                          <div>
-                            <h4 className="text-lg font-semibold">
-                              {item.customerName}
-                            </h4>
-                            <div className="grid grid-cols-2 gap-4">
-                              <p>
-                                <span className="font-medium">Kỳ vọng:</span>{" "}
-                                {item.expectedCount}
-                              </p>
-                              <p>
-                                <span className="font-medium">Thực tế:</span>{" "}
-                                {item.actualCount}
-                              </p>
-                              <p
-                                className={`font-medium ${
-                                  item.difference !== 0
-                                    ? "text-red-500"
-                                    : "text-green-500"
-                                }`}
+                        <ChevronRight
+                          className={`mr-2 h-4 w-4 transition-transform ${
+                            expandedDates.has(date) ? "rotate-90" : ""
+                          }`}
+                        />
+                        {date} ({promotions.length} mã)
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Mã Promotion</TableHead>
+                            <TableHead>Khách hàng</TableHead>
+                            <TableHead className="text-right">
+                              Kỳ vọng
+                            </TableHead>
+                            <TableHead className="text-right">
+                              Thực tế
+                            </TableHead>
+                            <TableHead className="text-right">
+                              Chênh lệch
+                            </TableHead>
+                            <TableHead>Trạng thái</TableHead>
+                            <TableHead>Loại cửa hàng</TableHead>
+                            <TableHead>Chi tiết</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {promotions.map((item, index) => {
+                            const hasIssue =
+                              item.missingStores.length > 0 ||
+                              item.difference !== 0;
+                            return (
+                              <TableRow
+                                key={index}
+                                className={hasIssue ? "bg-red-100" : ""}
                               >
-                                <span>Chênh lệch:</span> {item.difference}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Bảng cửa hàng thiếu */}
-                          <div>
-                            {item.missingStores.length > 0 ? (
-                              <table className="min-w-full table-auto border-separate border-spacing-0 rounded-lg overflow-hidden shadow-md bg-white">
-                                <thead className="bg-red-500 text-white">
-                                  <tr>
-                                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase">
-                                      Store thiếu
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="text-gray-700">
-                                  {item.missingStores.map((store, index) => (
-                                    <tr
-                                      key={index}
-                                      className="border-t hover:bg-gray-50"
+                                <TableCell className="font-medium">
+                                  {item.promotionId}
+                                </TableCell>
+                                <TableCell>{item.customerName}</TableCell>
+                                <TableCell className="text-right">
+                                  {item.expectedCount}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {item.actualCount}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {item.difference}
+                                </TableCell>
+                                <TableCell>
+                                  {item.difference === 0 ? (
+                                    <Badge
+                                      variant="success"
+                                      className="text-green-500 "
                                     >
-                                      <td className="px-6 py-4">{store}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            ) : (
-                              <p className="text-gray-500 italic">
-                                Không có cửa hàng thiếu
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Bảng cửa hàng thừa */}
-                          <div>
-                            {item.excessStores.length > 0 ? (
-                              <table className="min-w-full table-auto border-separate border-spacing-0 rounded-lg overflow-hidden shadow-md bg-white">
-                                <thead className="bg-green-700 text-white">
-                                  <tr>
-                                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase">
-                                      Store thừa:
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {item.excessStores.map((store, index) => (
-                                    <tr
-                                      key={index}
-                                      className="border-t hover:bg-gray-50"
+                                      <Check className="h-5 w-5" />
+                                    </Badge>
+                                  ) : item.difference > 0 ? (
+                                    <Badge
+                                      variant="warning"
+                                      className="text-green-500"
                                     >
-                                      <td className="px-6 py-4">{store}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            ) : (
-                              <p className="text-gray-500 italic">
-                                Không có cửa hàng thừa
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                                      Thừa
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="destructive"
+                                      className=" text-red-500"
+                                    >
+                                      Thiếu
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <StoreTypesTooltip
+                                    storeTypes={item.storeTypesVisited}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        Xem chi tiết
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-[900px] w-full">
+                                      <DialogHeader>
+                                        <DialogTitle className="text-xl font-semibold">
+                                          {item.promotionId}
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                          <div className="flex flex-wrap gap-4">
+                                            <p className="font-medium text-blue-600">
+                                              <span className="font-semibold">
+                                                Ngày:
+                                              </span>{" "}
+                                              {item.date}
+                                            </p>
+                                          </div>
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      <div className="space-y-6">
+                                        <div>
+                                          <h4 className="text-lg font-semibold">
+                                            {item.customerName}
+                                          </h4>
+                                          <div className="grid grid-cols-2 gap-4">
+                                            <p>
+                                              <span className="font-medium">
+                                                Kỳ vọng:
+                                              </span>{" "}
+                                              {item.expectedCount}
+                                            </p>
+                                            <p>
+                                              <span className="font-medium">
+                                                Thực tế:
+                                              </span>{" "}
+                                              {item.actualCount}
+                                            </p>
+                                            <p
+                                              className={`font-medium ${
+                                                item.difference !== 0
+                                                  ? "text-red-500"
+                                                  : "text-green-500"
+                                              }`}
+                                            >
+                                              <span>Chênh lệch:</span>{" "}
+                                              {item.difference}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* Missing Stores */}
+                                        <div>
+                                          {item.missingStores.length > 0 ? (
+                                            <div className="rounded-lg overflow-hidden border">
+                                              <div className="bg-red-500 text-white px-4 py-2 font-semibold">
+                                                Store thiếu
+                                              </div>
+                                              <div className="divide-y">
+                                                {item.missingStores.map(
+                                                  (store, idx) => (
+                                                    <div
+                                                      key={idx}
+                                                      className="px-4 py-2 bg-white"
+                                                    >
+                                                      {store}
+                                                    </div>
+                                                  )
+                                                )}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <p className="text-gray-500 italic">
+                                              Không có cửa hàng thiếu
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        {/* Excess Stores */}
+                                        <div>
+                                          {item.excessStores.length > 0 ? (
+                                            <div className="rounded-lg overflow-hidden border">
+                                              <div className="bg-green-600 text-white px-4 py-2 font-semibold">
+                                                Store thừa
+                                              </div>
+                                              <div className="divide-y">
+                                                {item.excessStores.map(
+                                                  (store, idx) => (
+                                                    <div
+                                                      key={idx}
+                                                      className="px-4 py-2 bg-white"
+                                                    >
+                                                      {store}
+                                                    </div>
+                                                  )
+                                                )}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <p className="text-gray-500 italic">
+                                              Không có cửa hàng thừa
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              );
+            })}
+          </div>
         </ScrollArea>
       </CardContent>
     </Card>

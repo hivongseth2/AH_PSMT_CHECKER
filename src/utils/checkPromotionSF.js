@@ -22,6 +22,8 @@ export const checkPromotion = async (
 
   // First, group store visits by date and store type
   const storeVisitsMap = new Map();
+  console.log(rawData);
+
   rawData.forEach((row) => {
     const {
       Date: rawDate,
@@ -44,6 +46,7 @@ export const checkPromotion = async (
     }
   });
 
+
   // Convert store visits map to results structure
   for (const [visitKey, storeMap] of storeVisitsMap) {
     const [dateKey, typeStore] = visitKey.split("_");
@@ -53,13 +56,14 @@ export const checkPromotion = async (
     results.storeVisits[dateKey][typeStore] = Array.from(storeMap.keys());
   }
 
+
   // Group raw data by promotion, customer, and date
   rawData.forEach((row, index) => {
     const {
       Date: rawDate,
       "Store ID - Unilever": storeId,
       Customer: customerName,
-      "Promotion ID": promotionId,
+     "Promotion ID": promotionId,
       "Product ID": productId,
       "Customer ID": customerId,
       TYPESTORE: typeStore,
@@ -117,12 +121,17 @@ export const checkPromotion = async (
     });
 
     checklist.forEach((item) => {
+      const startDate = new Date(item["START DATE"]);
+      const endDate = new Date(item["END DATE"]);
+      const normalizedStartDate = startDate.setHours(0, 0, 0, 0);
+      const normalizedEndDate = endDate.setHours(0, 0, 0, 0);
+      const normalizedItemDate = date.setHours(0, 0, 0, 0);
       if (
         item["Promotion ID"] === promotionId &&
         item["Customer"] === customerName &&
-        isWithinInterval(date, {
-          start: new Date(item["START DATE"]),
-          end: new Date(item["END DATE"]),
+        isWithinInterval(normalizedItemDate, {
+          start: normalizedStartDate,
+          end: normalizedEndDate,
         })
       ) {
         // For each store type that was visited

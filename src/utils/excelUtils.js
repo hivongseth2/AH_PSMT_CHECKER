@@ -100,6 +100,7 @@ export const processChecklistPromotionData = (data) => {
 
 export const processPromotionRawData = (data) => {
   const headers = data[0];
+  const uniqueItems = new Map();
 
   return data.slice(1).reduce((acc, row) => {
     const item = {};
@@ -109,8 +110,18 @@ export const processPromotionRawData = (data) => {
       }
     });
 
-    if (item["Product ID"] !== undefined) {
-      acc.push(item);
+    if (
+      item["Product ID"] !== undefined &&
+      item["Audit status"] !== "Not Yet"
+    ) {
+      const uniqueKey = `${item["Store ID - Unilever"]}_${item["Promotion ID"]}_${item["Product ID"]}`;
+      const existingItem = uniqueItems.get(uniqueKey);
+
+      if (!existingItem) {
+        // Nếu chưa tồn tại thì thêm vào Map và danh sách
+        uniqueItems.set(uniqueKey, item);
+        acc.push(item);
+      }
     }
 
     return acc;
