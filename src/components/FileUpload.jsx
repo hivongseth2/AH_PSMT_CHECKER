@@ -6,16 +6,14 @@ const FileUpload = ({ label, accept, onChange, className = "", file }) => {
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
-    if (selectedFile) {
-      onChange(event);
-    }
+    onChange(event); // Gửi toàn bộ event để App.js xử lý
   };
 
   const removeFile = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = ""; // Xóa giá trị input
     }
-    onChange({ target: { files: null } });
+    onChange({ target: { files: null } }); // Gửi event với files: null
   };
 
   return (

@@ -34,14 +34,11 @@ export default function App() {
   const [currentProgress, setCurrentProgress] = useState([]);
 
   const handleFileChange = (type) => (event) => {
-    if (event.target.files) {
-      setFiles((prev) => ({
-        ...prev,
-        [type]: event.target.files[0],
-      }));
-    }
+    setFiles((prev) => ({
+      ...prev,
+      [type]: event.target.files ? event.target.files[0] : null,
+    }));
   };
-
   const addProgressUpdate = useCallback((update) => {
     setCurrentProgress((prev) => [...prev, update]);
     if (update.progress) setBatchProgress(update.progress);
@@ -194,128 +191,31 @@ export default function App() {
     }
   };
   const exportFullResults = async () => {
-
-    console.log(scoringResults);
-    console.log(promotionResults);
-    
-    
     if (!rawWorkbook || (!scoringResults && !promotionResults)) return;
   
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" }));
+    const worker = new Worker(new URL("./workers/excelWorker.js", import.meta.url));
+    const rawWorkbookData = XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" });
   
-    // Xử lý OSA RAW (Sheet 2, index 1)
-    const osaSheet = workbook.getWorksheet(rawWorkbook.SheetNames[1]);
-    if (osaSheet) {
-      // Thêm cột "Lỗi" vào hàng đầu tiên (header)
-      const headerRow = osaSheet.getRow(1);
-      const originalHeaders = headerRow.values.slice(1); // Bỏ qua cell 0 (rỗng)
-      headerRow.values = [...originalHeaders, "Lỗi"];
-  
-      // Định dạng header
-      headerRow.eachCell((cell) => {
-        cell.font = { bold: true };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FFD3D3D3" },
-        };
-        cell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
-  
-      // Tô đỏ và thêm lỗi cho các dòng dữ liệu
-      osaSheet.eachRow((row, rowNumber) => {
-        if (rowNumber > 1) { // Bỏ qua header
-          const errorInfo = scoringResults?.invalidRows?.find(r => r.index === rowNumber);
-          if (errorInfo) {
-            row.eachCell((cell) => {
-              cell.fill = {
-                type: "pattern",
-                pattern: "solid",
-                fgColor: { argb: "FFFFCCCC" },
-              };
-              cell.border = {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              };
-            });
-            row.getCell(originalHeaders.length + 1).value = errorInfo.reason || "";
-          }
-        }
-      });
-  
-      // Đặt chiều rộng cột
-      osaSheet.columns.forEach((column, i) => {
-        column.width = i === originalHeaders.length ? 50 : 20; // Cột "Lỗi" rộng hơn
-      });
-    }
-  
-    // Xử lý PROOL (Sheet 6, index 5)
-    const promoSheet = workbook.getWorksheet(rawWorkbook.SheetNames[5]);
-    if (promoSheet) {
-      // Thêm cột "Lỗi" vào hàng đầu tiên (header)
-      const headerRow = promoSheet.getRow(1);
-      const originalHeaders = headerRow.values.slice(1); // Bỏ qua cell 0 (rỗng)
-      headerRow.values = [...originalHeaders, "Lỗi"];
-  
-      // Định dạng header
-      headerRow.eachCell((cell) => {
-        cell.font = { bold: true };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FFD3D3D3" },
-        };
-        cell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
-  
-      // Tô đỏ và thêm lỗi cho các dòng dữ liệu
-      promoSheet.eachRow((row, rowNumber) => {
-        if (rowNumber > 1) { // Bỏ qua header
-          const errorInfo = promotionResults?.invalidRows?.find(r => r.index === rowNumber) ||
-                           promotionResults?.errors?.find(e => e.row === rowNumber);
-          if (errorInfo) {
-            row.eachCell((cell) => {
-              cell.fill = {
-                type: "pattern",
-                pattern: "solid",
-                fgColor: { argb: "FFFFCCCC" },
-              };
-              cell.border = {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              };
-            });
-            row.getCell(originalHeaders.length + 1).value = errorInfo.reason || errorInfo.message || "";
-          }
-        }
-      });
-  
-      // Đặt chiều rộng cột
-      promoSheet.columns.forEach((column, i) => {
-        column.width = i === originalHeaders.length ? 50 : 20; // Cột "Lỗi" rộng hơn
-      });
-    }
-  
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    worker.postMessage({
+      rawWorkbookData,
+      scoringResults,
+      promotionResults,
+      sheetNames: rawWorkbook.SheetNames,
     });
-    saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
+  
+    worker.onmessage = (e) => {
+      const buffer = e.data;
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
+      worker.terminate();
+    };
+  
+    worker.onerror = (error) => {
+      console.error("Worker error:", error);
+      worker.terminate();
+    };
   };
 
   return (
