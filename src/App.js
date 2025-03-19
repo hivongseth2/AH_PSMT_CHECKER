@@ -16,6 +16,9 @@ import {
 } from "./utils/excelUtils";
 import { countStore } from "./utils/countStore";
 import { checkPromotion } from "./utils/checkPromotionSF";
+import * as ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 
 export default function App() {
   const [files, setFiles] = useState({
@@ -26,6 +29,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [scoringResults, setScoringResults] = useState(null);
   const [promotionResults, setPromotionResults] = useState(null);
+  const [rawWorkbook, setRawWorkbook] = useState(null); // Lưu workbook gốc
   const [batchProgress, setBatchProgress] = useState(0);
   const [currentProgress, setCurrentProgress] = useState([]);
 
@@ -40,11 +44,67 @@ export default function App() {
 
   const addProgressUpdate = useCallback((update) => {
     setCurrentProgress((prev) => [...prev, update]);
-    if (update.progress) {
-      setBatchProgress(update.progress);
-    }
+    if (update.progress) setBatchProgress(update.progress);
   }, []);
 
+  const handleAllDataCheck = async () => {
+    if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
+
+    setIsProcessing(true);
+    setScoringResults(null);
+    setPromotionResults(null);
+    setRawWorkbook(null);
+    setBatchProgress(0);
+    setCurrentProgress([]);
+
+    try {
+      // Đọc dữ liệu từ file
+      const checklistData = await processExcelFile(files[FILE_TYPES.CHECKLIST]);
+      const rawFileReader = new FileReader();
+      const rawPromise = new Promise((resolve) => {
+        rawFileReader.onload = (e) => {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          resolve(workbook);
+        };
+        rawFileReader.readAsArrayBuffer(files[FILE_TYPES.RAW_DATA]);
+      });
+      const rawWorkbook = await rawPromise;
+      setRawWorkbook(rawWorkbook);
+
+      // Xử lý OSA RAW (Sheet 2, index 1)
+      const osaSheet = rawWorkbook.Sheets[rawWorkbook.SheetNames[1]];
+      const osaRawData = XLSX.utils.sheet_to_json(osaSheet, { header: 1 });
+      const osaChecklist = processChecklistData(checklistData);
+      const osaProcessedRaw = processRawData(osaRawData);
+      const osaResults = await countStore(
+        osaChecklist,
+        osaProcessedRaw,
+        addProgressUpdate,
+        setBatchProgress
+      );
+
+      // Xử lý PROOL (Sheet 6, index 5)
+      const promoSheet = rawWorkbook.Sheets[rawWorkbook.SheetNames[5]];
+      const promoRawData = XLSX.utils.sheet_to_json(promoSheet, { header: 1 });
+      const promoChecklist = processChecklistPromotionData(checklistData);
+      const promoProcessedRaw = processPromotionRawData(promoRawData);
+      const promoResults = await checkPromotion(
+        promoChecklist,
+        promoProcessedRaw,
+        addProgressUpdate,
+        setBatchProgress
+      );
+
+      setScoringResults(osaResults);
+      setPromotionResults(promoResults);
+
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   const handleScoringDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
       return;
@@ -84,7 +144,7 @@ export default function App() {
       setIsProcessing(false);
     }
   };
-
+  
   const handlePromotionDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
       return;
@@ -124,13 +184,138 @@ export default function App() {
       setIsProcessing(false);
     }
   };
-
   const handleDataCheck = async () => {
-    if (activeTab === CHECK_TYPES.PROMOTION) {
+    if (activeTab === "ALL") {
+      await handleAllDataCheck();
+    } else if (activeTab === CHECK_TYPES.PROMOTION) {
       await handlePromotionDataCheck();
     } else if (activeTab === CHECK_TYPES.SCORING) {
       await handleScoringDataCheck();
     }
+  };
+  const exportFullResults = async () => {
+
+    console.log(scoringResults);
+    console.log(promotionResults);
+    
+    
+    if (!rawWorkbook || (!scoringResults && !promotionResults)) return;
+  
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" }));
+  
+    // Xử lý OSA RAW (Sheet 2, index 1)
+    const osaSheet = workbook.getWorksheet(rawWorkbook.SheetNames[1]);
+    if (osaSheet) {
+      // Thêm cột "Lỗi" vào hàng đầu tiên (header)
+      const headerRow = osaSheet.getRow(1);
+      const originalHeaders = headerRow.values.slice(1); // Bỏ qua cell 0 (rỗng)
+      headerRow.values = [...originalHeaders, "Lỗi"];
+  
+      // Định dạng header
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFD3D3D3" },
+        };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+  
+      // Tô đỏ và thêm lỗi cho các dòng dữ liệu
+      osaSheet.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) { // Bỏ qua header
+          const errorInfo = scoringResults?.invalidRows?.find(r => r.index === rowNumber);
+          if (errorInfo) {
+            row.eachCell((cell) => {
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFFFCCCC" },
+              };
+              cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              };
+            });
+            row.getCell(originalHeaders.length + 1).value = errorInfo.reason || "";
+          }
+        }
+      });
+  
+      // Đặt chiều rộng cột
+      osaSheet.columns.forEach((column, i) => {
+        column.width = i === originalHeaders.length ? 50 : 20; // Cột "Lỗi" rộng hơn
+      });
+    }
+  
+    // Xử lý PROOL (Sheet 6, index 5)
+    const promoSheet = workbook.getWorksheet(rawWorkbook.SheetNames[5]);
+    if (promoSheet) {
+      // Thêm cột "Lỗi" vào hàng đầu tiên (header)
+      const headerRow = promoSheet.getRow(1);
+      const originalHeaders = headerRow.values.slice(1); // Bỏ qua cell 0 (rỗng)
+      headerRow.values = [...originalHeaders, "Lỗi"];
+  
+      // Định dạng header
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFD3D3D3" },
+        };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+  
+      // Tô đỏ và thêm lỗi cho các dòng dữ liệu
+      promoSheet.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) { // Bỏ qua header
+          const errorInfo = promotionResults?.invalidRows?.find(r => r.index === rowNumber) ||
+                           promotionResults?.errors?.find(e => e.row === rowNumber);
+          if (errorInfo) {
+            row.eachCell((cell) => {
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFFFCCCC" },
+              };
+              cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              };
+            });
+            row.getCell(originalHeaders.length + 1).value = errorInfo.reason || errorInfo.message || "";
+          }
+        }
+      });
+  
+      // Đặt chiều rộng cột
+      promoSheet.columns.forEach((column, i) => {
+        column.width = i === originalHeaders.length ? 50 : 20; // Cột "Lỗi" rộng hơn
+      });
+    }
+  
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
   };
 
   return (
@@ -160,7 +345,7 @@ export default function App() {
               </div>
 
               <Tabs>
-                <TabsList className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <TabsList className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <TabsTrigger
                     isActive={activeTab === CHECK_TYPES.SCORING}
                     onClick={() => setActiveTab(CHECK_TYPES.SCORING)}
@@ -173,30 +358,44 @@ export default function App() {
                   >
                     Kiểm Tra Dữ Liệu Promotion
                   </TabsTrigger>
+                  <TabsTrigger
+                    isActive={activeTab === "ALL"}
+                    onClick={() => setActiveTab("ALL")}
+                  >
+                    Kiểm Tra Tất Cả
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent>
                   <Card>
                     <CardHeader>
                       <CardTitle>
-                        {activeTab === CHECK_TYPES.SCORING &&
-                          "Kiểm Tra số lượng SKU"}
-                        {activeTab === CHECK_TYPES.PROMOTION &&
-                          "Kiểm Tra Dữ Liệu Promotion"}
+                        {activeTab === CHECK_TYPES.SCORING && "Kiểm Tra số lượng SKU"}
+                        {activeTab === CHECK_TYPES.PROMOTION && "Kiểm Tra Dữ Liệu Promotion"}
+                        {activeTab === "ALL" && "Kiểm Tra Toàn Bộ Dữ Liệu"}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <Button
-                        onClick={handleDataCheck}
-                        disabled={
-                          !files[FILE_TYPES.CHECKLIST] ||
-                          !files[FILE_TYPES.RAW_DATA] ||
-                          isProcessing
-                        }
-                        isLoading={isProcessing}
-                      >
-                        {isProcessing ? "Đang Kiểm Tra..." : "Bắt Đầu Kiểm Tra"}
-                      </Button>
+                      <div className="flex space-x-4">
+                        <Button
+                          onClick={handleDataCheck}
+                          disabled={
+                            !files[FILE_TYPES.CHECKLIST] ||
+                            !files[FILE_TYPES.RAW_DATA] ||
+                            isProcessing
+                          }
+                          isLoading={isProcessing}
+                        >
+                          {isProcessing ? "Đang Kiểm Tra..." : "Bắt Đầu Kiểm Tra"}
+                        </Button>
+                        <Button
+                          onClick={exportFullResults}
+                          disabled={!rawWorkbook || isProcessing}
+                          className="bg-green-500 hover:bg-green-600"
+                        >
+                          Xuất Raw Data
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -218,6 +417,23 @@ export default function App() {
                   batchProgress={batchProgress}
                   invalidRows={promotionResults?.invalidRows || []}
                 />
+              )}
+
+              {activeTab === "ALL" && (
+                <>
+                  <ScoringResultDisplay
+                    results={scoringResults}
+                    isLoading={isProcessing}
+                    batchProgress={batchProgress}
+                    progressUpdates={currentProgress}
+                  />
+                  <PromotionResultDisplay
+                    results={promotionResults}
+                    isLoading={isProcessing}
+                    batchProgress={batchProgress}
+                    invalidRows={promotionResults?.invalidRows || []}
+                  />
+                </>
               )}
             </CardContent>
           </Card>

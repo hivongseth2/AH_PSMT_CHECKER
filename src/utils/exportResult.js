@@ -1,85 +1,105 @@
 import ExcelJS from "exceljs";
 
-export const exportResults = async (results) => {
+export const exportResults = async (rawData, results, fileType) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Kết quả");
 
-  // Định nghĩa các cột
-  worksheet.columns = [
-    { header: "Loại", key: "type", width: 30 },
-    { header: "Tiêu đề", key: "title", width: 45 },
-    { header: "Nội dung", key: "message", width: 100 },
-  ];
+  // Lấy headers từ raw data
+  const headers = Object.keys(rawData[0] || {});
+  worksheet.columns = headers.map((header) => ({
+    header,
+    key: header,
+    width: 20,
+  }));
 
-  // Thêm header với style
+  // Thêm cột ghi chú lỗi
+  worksheet.columns.push({
+    header: "Ghi chú lỗi",
+    key: "errorNote",
+    width: 50
+  });
+
+  // Style header
   const headerRow = worksheet.getRow(1);
-  headerRow.values = ["Loại", "Tiêu đề", "Nội dung"];
-  headerRow.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } }; // Chữ trắng
-  headerRow.alignment = { horizontal: "center", vertical: "middle" }; // Căn giữa
-  headerRow.eachCell((cell, colNumber) => {
-    if (colNumber <= 3) {
-      // Chỉ áp dụng style cho 3 cột đầu
-      cell.border = {
-        top: { style: "thin" },
-        bottom: { style: "thin" },
-        left: { style: "thin" },
-        right: { style: "thin" },
-      };
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF0070C0" }, // Màu nền xanh
-      };
+  headerRow.font = {
+    bold: true,
+    color: {
+      argb: "FFFFFFFF"
+    }
+  };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: {
+      argb: "FF0070C0"
+    },
+  };
+  headerRow.eachCell((cell) => {
+    cell.border = {
+      top: {
+        style: "thin"
+      },
+      bottom: {
+        style: "thin"
+      },
+      left: {
+        style: "thin"
+      },
+      right: {
+        style: "thin"
+      },
+    };
+  });
+
+  // Thêm dữ liệu
+  rawData.forEach((row, index) => {
+    const resultRow = worksheet.addRow({
+      ...row
+    });
+    const errorInfo = fileType === "OSA" ?
+      results.invalidRows.find(r => r.index === index + 2) :
+      results.invalidRows.find(r => r.index === index + 2) ||
+      results.errors.find(e => e.row === index + 2);
+
+    if (errorInfo) {
+      // Tô đỏ dòng sai
+      resultRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: {
+            argb: "FFFFCCCC"
+          }, // Màu đỏ nhạt
+        };
+        cell.border = {
+          top: {
+            style: "thin"
+          },
+          bottom: {
+            style: "thin"
+          },
+          left: {
+            style: "thin"
+          },
+          right: {
+            style: "thin"
+          },
+        };
+      });
+      // Ghi chú lỗi
+      resultRow.getCell("errorNote").value = errorInfo.reason || errorInfo.message;
     }
   });
 
-  // Thêm dữ liệu với màu sắc theo loại
-  results.forEach((result) => {
-    const row = worksheet.addRow({
-      type: result.type,
-      title: result.title,
-      message: result.message,
-    });
-
-    // Styling cho từng dòng dựa trên `type`
-    const fillColor =
-      result.type === "error"
-        ? { argb: "FFFFCCCC" } // Màu đỏ nhạt
-        : result.type === "info"
-        ? { argb: "FFCCFFCC" } // Màu xanh nhạt
-        : null;
-
-    row.eachCell((cell, colNumber) => {
-      if (colNumber <= 3) {
-        // Chỉ style trong phạm vi 3 cột
-        if (fillColor) {
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: fillColor,
-          };
-        }
-        cell.border = {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" },
-        };
-        cell.alignment = { vertical: "middle", horizontal: "left" }; // Căn trái dữ liệu
-      }
-    });
-  });
-
-  // Xuất file trên trình duyệt
+  // Xuất file
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   const url = URL.createObjectURL(blob);
-
   const link = document.createElement("a");
   link.href = url;
-  link.download = `ket_qua_${new Date().toISOString()}.xlsx`;
+  link.download = `ket_qua_${fileType}_${new Date().toISOString()}.xlsx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

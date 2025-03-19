@@ -20,7 +20,7 @@ export const countStore = async (
     outOfRangeCount: 0,
     errors: [],
     skuCounts: {},
-    invalidRows: [], // Thêm trường này
+    invalidRows: [],
   };
 
   const batchSize = 1000;
@@ -37,7 +37,6 @@ export const countStore = async (
         const flexStartDate = new Date(
           item["Ngày Bắt Đầu Linh Động Đo Hàng Cũ & Mới"]
         );
-
         const flexEndDate = new Date(
           item["Ngày Kết Thúc Linh Động Đo Hàng Cũ & Mới"]
         );
@@ -52,8 +51,8 @@ export const countStore = async (
             const OldCode = item["Old code"];
             const NewCode = item["New code"];
             const isValidPair =
-              (ItemCode && NewCode && ItemCode !== NewCode) || // Cặp ItemCode - NewCode hợp lệ
-              (ItemCode && OldCode && ItemCode !== OldCode); // Cặp ItemCode - OldCode hợp lệ4
+              (ItemCode && NewCode && ItemCode !== NewCode) ||
+              (ItemCode && OldCode && ItemCode !== OldCode);
 
             if (
               normalizedItemDate >= normalizedStartDate &&
@@ -72,39 +71,19 @@ export const countStore = async (
                 } else if (
                   normalizedItemDate > flexEndDate.setHours(0, 0, 0, 0)
                 ) {
-                  // sau flexable
-
                   expectedCount += 1;
-                  if (NewCode) {
-                    expectedSKUs.push(NewCode);
-                  } else {
-                    expectedSKUs.push(ItemCode);
-                  }
+                  expectedSKUs.push(NewCode || ItemCode);
                 } else if (
                   normalizedItemDate < flexStartDate.setHours(0, 0, 0, 0)
                 ) {
-                  //trước flexable
-
                   expectedCount += 1;
-                  if (OldCode) {
-                    expectedSKUs.push(OldCode);
-                  } else {
-                    expectedSKUs.push(ItemCode);
-                  }
-                }
-
-                // sai chỗ này
-                else {
+                  expectedSKUs.push(OldCode || ItemCode);
+                } else {
                   expectedCount += 1;
-
                   expectedSKUs.push(ItemCode);
                 }
-              }
-
-              // sai chỗ này
-              else {
+              } else {
                 expectedCount += 1;
-
                 expectedSKUs.push(ItemCode);
               }
             }
@@ -118,13 +97,14 @@ export const countStore = async (
   const processItem = (row, index) => {
     const productId = row["Product ID"];
     if (productId === undefined) {
-      console.log(`Skipping row ${index + 2}: Product_id is undefined`);
+      results.invalidRows.push({
+        index: index + 2,
+        reason: "Product ID không xác định",
+        data: row,
+      });
       return null;
     }
     if (!row.Date || row.Date.trim() === "") {
-      console.log(
-        `Skipping row ${index + 2}: Dữ liệu cột Date rỗng hoặc không xác định`
-      );
       results.invalidRows.push({
         index: index + 2,
         reason: "Dữ liệu cột Date rỗng hoặc không xác định",
@@ -135,16 +115,23 @@ export const countStore = async (
 
     const rowDate = parseDate(row.Date);
     if (!rowDate) {
-      console.log(`Skipping row ${index + 2}: Invalid date format`);
       results.invalidRows.push({
         index: index + 2,
-        reason: "Invalid date format",
+        reason: "Định dạng ngày không hợp lệ",
         data: row,
       });
       return null;
     }
 
     const storeId = row["Store ID - Unilever"];
+    if (!storeId) {
+      results.invalidRows.push({
+        index: index + 2,
+        reason: "Store ID không xác định",
+        data: row,
+      });
+      return null;
+    }
 
     if (!results.skuCounts[rowDate]) {
       results.skuCounts[rowDate] = {};
@@ -155,11 +142,13 @@ export const countStore = async (
         actualSKUs: [],
         expected: 0,
         expectedSKUs: [],
+        rowIndices: [], // Thêm để lưu index của các dòng
       };
     }
 
     results.skuCounts[rowDate][storeId].actual++;
     results.skuCounts[rowDate][storeId].actualSKUs.push(productId);
+    results.skuCounts[rowDate][storeId].rowIndices.push(index + 2);
 
     return { isValid: true, isOutOfRange: false, error: null };
   };
@@ -169,11 +158,10 @@ export const countStore = async (
     for (let i = 0; i < batch.length; i++) {
       chunkResults.push(processItem(batch[i], startIndex + i));
     }
-
     return chunkResults;
   };
 
-  const rawDataGenerator = await batchGenerator(rawData, batchSize);
+  const rawDataGenerator = batchGenerator(rawData, batchSize);
   let processedItems = 0;
 
   for (const batch of rawDataGenerator) {
@@ -221,10 +209,9 @@ export const countStore = async (
     );
   }
 
-  // Calculate missing and extra SKUs
+  // Calculate missing and extra SKUs and mark invalid rows
   Object.entries(results.skuCounts).forEach(([date, stores]) => {
     Object.entries(stores).forEach(([storeId, data]) => {
-      // Ensure all SKUs are parsed as strings for consistent comparison
       const actualSKUs = data.actualSKUs.map(String);
       const expectedSKUs = data.expectedSKUs.map(String);
 
@@ -234,7 +221,24 @@ export const countStore = async (
       data.missingSKUs = expectedSKUs.filter((sku) => !actualSet.has(sku));
       data.extraSKUs = actualSKUs.filter((sku) => !expectedSet.has(sku));
 
-      // Parse the sets to strings
+      // Ghi nhận lỗi nếu có SKU thiếu hoặc thừa
+      if (data.missingSKUs.length > 0 || data.extraSKUs.length > 0) {
+        data.rowIndices.forEach((rowIndex) => {
+          const row = rawData[rowIndex - 2]; // Điều chỉnh index về 0-based
+          let reason = "";
+          if (data.missingSKUs.length > 0) {
+            reason += `Thiếu SKU: ${data.missingSKUs.join(", ")}. `;
+          }
+          if (data.extraSKUs.length > 0) {
+            reason += `Thừa SKU: ${data.extraSKUs.join(", ")}. `;
+          }
+          results.invalidRows.push({
+            index: rowIndex,
+            reason: reason.trim(),
+            data: row,
+          });
+        });
+      }
     });
   });
 

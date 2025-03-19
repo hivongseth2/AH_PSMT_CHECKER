@@ -15,12 +15,12 @@ export const checkPromotion = async (
     invalidRows: [],
     groupedData: {},
     dailySummary: {},
-    storeVisits: {}, // Track store visits by date
+    storeVisits: {},
   };
 
   const totalItems = rawData.length;
 
-  // First, group store visits by date and store type
+  // Group store visits by date and store type
   const storeVisitsMap = new Map();
 
   rawData.forEach((row) => {
@@ -40,12 +40,10 @@ export const checkPromotion = async (
           storeVisitsMap.set(visitKey, new Map());
         }
         const storeMap = storeVisitsMap.get(visitKey);
-        storeMap.set(storeId, (storeMap.get(storeId) || 0) + 1); // Count each store visit
+        storeMap.set(storeId, (storeMap.get(storeId) || 0) + 1);
       }
     }
   });
-
-  console.log(storeVisitsMap, "storeVisitsMap");
 
   // Convert store visits map to results structure
   for (const [visitKey, storeMap] of storeVisitsMap) {
@@ -90,13 +88,31 @@ export const checkPromotion = async (
       return;
     }
 
+    if (!storeId) {
+      results.invalidRows.push({
+        index: index + 2,
+        reason: "Store ID không xác định",
+        data: row,
+      });
+      return;
+    }
+
+    if (!promotionId) {
+      results.invalidRows.push({
+        index: index + 2,
+        reason: "Promotion ID không xác định",
+        data: row,
+      });
+      return;
+    }
+
     const dateKey = format(rowDate, "yyyy-MM-dd");
     const groupKey = `${promotionId}_${customerName}_${dateKey}`;
 
     if (!results.groupedData[groupKey]) {
       results.groupedData[groupKey] = [];
     }
-    results.groupedData[groupKey].push(row);
+    results.groupedData[groupKey].push({ ...row, index: index + 2 });
   });
 
   console.log(results.groupedData, "groupedData");
@@ -120,7 +136,7 @@ export const checkPromotion = async (
 
     rows.forEach((row) => {
       const storeId = row["Store ID - Unilever"];
-      actualStores.set(storeId, (actualStores.get(storeId) || 0) + 1); // Track store visit counts
+      actualStores.set(storeId, (actualStores.get(storeId) || 0) + 1);
     });
 
     checklist.forEach((item) => {
@@ -137,13 +153,11 @@ export const checkPromotion = async (
           end: normalizedEndDate,
         })
       ) {
-        // For each store type that was visited
         storeTypesVisited.forEach((storeType) => {
           if (
             item.stores[storeType] === "Y" &&
             results.storeVisits[dateKey]?.[storeType]
           ) {
-            // Add the number of unique stores visited for this store type
             expectedCount += results.storeVisits[dateKey][storeType].length;
             results.storeVisits[dateKey][storeType].forEach((store) =>
               expectedStores.add(store)
@@ -152,8 +166,6 @@ export const checkPromotion = async (
         });
       }
     });
-
-    // Check for duplicates
 
     results.validCount += actualCount;
 
@@ -169,17 +181,43 @@ export const checkPromotion = async (
         (x) => !expectedStores.has(x)
       );
 
+      // Check for duplicates within this group
       const duplicateStores = [];
       actualStores.forEach((count, storeId) => {
         if (count > 1) {
-          duplicateStores.push(storeId); // Store IDs with more than 1 visit
+          duplicateStores.push(storeId);
         }
       });
 
       if (duplicateStores.length > 0) {
-        console.log(duplicateStores);
-
         excessStores = [...excessStores, ...duplicateStores];
+      }
+
+      // Ghi nhận lỗi vào invalidRows
+      if (missingStores.length > 0) {
+        rows.forEach((row) => {
+          results.invalidRows.push({
+            index: row.index,
+            reason: `Cửa hàng kỳ vọng bị thiếu: ${missingStores.join(", ")}`,
+            data: row,
+          });
+        });
+      }
+
+      if (excessStores.length > 0) {
+        rows.forEach((row) => {
+          const storeId = row["Store ID - Unilever"];
+          if (excessStores.includes(storeId)) {
+            const isDuplicate = duplicateStores.includes(storeId);
+            results.invalidRows.push({
+              index: row.index,
+              reason: isDuplicate
+                ? `Cửa hàng ${storeId} bị trùng lặp`
+                : `Cửa hàng thừa: ${storeId}`,
+              data: row,
+            });
+          }
+        });
       }
 
       const error = {
@@ -194,14 +232,15 @@ export const checkPromotion = async (
       };
       results.errors.push(error);
     }
-    const duplicateStores = [];
+
+    // Update daily summary
+    const duplicateStores = []; // Khai báo lại trong phạm vi này
     actualStores.forEach((count, storeId) => {
       if (count > 1) {
-        duplicateStores.push(storeId); // Store IDs with more than 1 visit
+        duplicateStores.push(storeId);
       }
     });
 
-    // Update daily summary
     if (!results.dailySummary[dateKey]) {
       results.dailySummary[dateKey] = {};
     }
@@ -215,7 +254,7 @@ export const checkPromotion = async (
       missingStores: [...expectedStores].filter((x) => !actualStores.has(x)),
       excessStores: [
         ...actualStores.keys().filter((x) => !expectedStores.has(x)),
-        ...duplicateStores, // Add duplicate stores to excess stores
+        ...duplicateStores,
       ],
     };
 
