@@ -20,6 +20,8 @@ export const CHECK_TYPES = {
   DAILY: "daily",
   SCORING: "scoring",
   PROMOTION: "promotion",
+  BIG: "big",
+  SMALL:"small",
 };
 
 export const CHECKLIST_HEADERS = [

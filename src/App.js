@@ -1,35 +1,43 @@
 import React, { useState, useCallback } from "react";
 import { Button } from "./components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
 import FileUpload from "./components/FileUpload";
 import ScoringResultDisplay from "./components/ScoringResultDisplay";
 import PromotionResultDisplay from "./components/PromotionResultDisplay";
 import ErrorBoundary from "./components/errorBoundary";
 import { CHECK_TYPES, FILE_TYPES } from "./lib/constants";
+import BigPromotionResults from './components/BigPromotionResults'; // Import the new component
 import {
   processExcelFile,
   processChecklistData,
   processRawData,
   processChecklistPromotionData,
   processPromotionRawData,
+  processChecklistBigFormatData,
+  processBIGPromotionRawData
 } from "./utils/excelUtils";
 import { countStore } from "./utils/countStore";
 import { checkPromotion } from "./utils/checkPromotionSF";
-import * as ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+
+// New imports for Big Format logic (to be implemented later)
+import { checkPromotionBigMS } from "./utils/checkPromotionBigMS";
+import { checkPromotionBigOL } from "./utils/checkPromotionBigOL";
+import { exportResultsBig } from "./utils/exportResult";
 
 export default function App() {
   const [files, setFiles] = useState({
     [FILE_TYPES.CHECKLIST]: null,
     [FILE_TYPES.RAW_DATA]: null,
   });
-  const [activeTab, setActiveTab] = useState(CHECK_TYPES.SCORING);
+  const [activeTab, setActiveTab] = useState("OSA_PRO_SMALL");
   const [isProcessing, setIsProcessing] = useState(false);
   const [scoringResults, setScoringResults] = useState(null);
   const [promotionResults, setPromotionResults] = useState(null);
-  const [rawWorkbook, setRawWorkbook] = useState(null); // Lưu workbook gốc
+  const [bigPromotionResults, setBigPromotionResults] = useState(null); // For Big Format results
+  const [rawWorkbook, setRawWorkbook] = useState(null);
   const [batchProgress, setBatchProgress] = useState(0);
   const [currentProgress, setCurrentProgress] = useState([]);
 
@@ -39,22 +47,26 @@ export default function App() {
       [type]: event.target.files ? event.target.files[0] : null,
     }));
   };
+
   const addProgressUpdate = useCallback((update) => {
     setCurrentProgress((prev) => [...prev, update]);
     if (update.progress) setBatchProgress(update.progress);
   }, []);
-  const handleAllDataCheck = async () => {
+
+  // Handle Small Format OSA + Promotion Check
+  const handleSmallFormatCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
 
     setIsProcessing(true);
     setScoringResults(null);
     setPromotionResults(null);
+    setBigPromotionResults(null);
     setRawWorkbook(null);
     setBatchProgress(0);
     setCurrentProgress([]);
 
     try {
-      // Đọc workbook gốc của raw data để lưu lại
+      // Read the raw workbook for export later
       const rawFileReader = new FileReader();
       const rawPromise = new Promise((resolve) => {
         rawFileReader.onload = (e) => {
@@ -67,7 +79,7 @@ export default function App() {
       const rawWorkbook = await rawPromise;
       setRawWorkbook(rawWorkbook);
 
-      // Xử lý OSA RAW
+      // Process OSA
       const [checklistData, osaRawData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
@@ -82,7 +94,7 @@ export default function App() {
         setBatchProgress
       );
 
-      // Xử lý PROOL
+      // Process PROOL (Small Format Promotion)
       const [checklistDataPro, promoRawData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
@@ -101,112 +113,128 @@ export default function App() {
       setPromotionResults(promoResults);
     } catch (error) {
       console.error(error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleScoringDataCheck = async () => {
-    if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
-      return;
-    }
-
-    setIsProcessing(true);
-    setScoringResults(null);
-    setBatchProgress(0);
-    setCurrentProgress([]);
-
-    try {
-      const [checklistData, rawData] = await Promise.all([
-        processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
-        processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
-      ]);
-
-      const processedChecklist = processChecklistData(checklistData);
-      const processedRawData = processRawData(rawData);
-
-      const validationResults = await countStore(
-        processedChecklist,
-        processedRawData,
-        addProgressUpdate,
-        setBatchProgress
-      );
-
-      setScoringResults(validationResults);
-    } catch (error) {
       setScoringResults([
-        {
-          type: "error",
-          title: "Lỗi xử lý",
-          message: error.message,
-        },
+        { type: "error", title: "Lỗi xử lý", message: error.message },
       ]);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-  
-  const handlePromotionDataCheck = async () => {
-    if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
-      return;
-    }
-
-    setIsProcessing(true);
-    setPromotionResults(null);
-    setBatchProgress(0);
-    setCurrentProgress([]);
-
-    try {
-      const [checklistData, rawData] = await Promise.all([
-        processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
-        processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
-      ]);
-
-      const processedChecklist = processChecklistPromotionData(checklistData);
-      const processedRawData = processPromotionRawData(rawData);
-
-      const promotionResult = await checkPromotion(
-        processedChecklist,
-        processedRawData,
-        addProgressUpdate,
-        setBatchProgress
-      );
-
-      setPromotionResults(promotionResult);
-    } catch (error) {
       setPromotionResults([
-        {
-          type: "error",
-          title: "Lỗi xử lý",
-          message: error.message,
-        },
+        { type: "error", title: "Lỗi xử lý", message: error.message },
       ]);
     } finally {
       setIsProcessing(false);
     }
   };
+
+
+const handleBigFormatCheck = async () => {
+  if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
+
+  setIsProcessing(true);
+  setScoringResults(null);
+  setPromotionResults(null);
+  setBigPromotionResults(null);
+  setRawWorkbook(null);
+  setBatchProgress(0);
+  setCurrentProgress([]);
+
+  try {
+    const rawFileReader = new FileReader();
+    const rawPromise = new Promise((resolve) => {
+      rawFileReader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {
+          type: "array"
+        });
+        resolve(workbook);
+      };
+      rawFileReader.readAsArrayBuffer(files[FILE_TYPES.RAW_DATA]);
+    });
+    const rawWorkbook = await rawPromise;
+    setRawWorkbook(rawWorkbook);
+
+    // Process Big Format MS Promotion
+    const [checklistDataMS, rawDataMS] = await Promise.all([
+      processExcelFile(files[FILE_TYPES.CHECKLIST], "3. Pro MS & 4. Pro OL"),
+      processExcelFile(files[FILE_TYPES.RAW_DATA], "PROMS"),
+    ]);
+
+    const {
+      promotions: msPromotions,
+      statistics: msChecklistStats
+    } = processChecklistBigFormatData(checklistDataMS);
+    const processedRawDataMS = processBIGPromotionRawData(rawDataMS, "PROMS");
+    const msResults = await checkPromotionBigMS(
+      msPromotions,
+      processedRawDataMS,
+      addProgressUpdate,
+      setBatchProgress
+    );
+
+    // Process Big Format OL Promotion (placeholder)
+    const [checklistDataOL, rawDataOL] = await Promise.all([
+      processExcelFile(files[FILE_TYPES.CHECKLIST], "3. Pro MS & 4. Pro OL"),
+      processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL_Dup"),
+    ]);
+
+    const {
+      promotions: olPromotions,
+      statistics: olChecklistStats
+    } = processChecklistBigFormatData(checklistDataOL);
+    const processedRawDataOL = processPromotionRawData(rawDataOL, "PROOL_Dup");
+    const olResults = await checkPromotionBigOL(
+      olPromotions,
+      processedRawDataOL,
+      addProgressUpdate,
+      setBatchProgress
+    );
+
+    setBigPromotionResults({
+      msResults,
+      olResults,
+      msChecklistStats,
+      olChecklistStats,
+    });
+  } catch (error) {
+    console.error(error);
+    setBigPromotionResults({
+      msResults: [{
+        type: "error",
+        title: "Lỗi xử lý MS",
+        message: error.message
+      }],
+      olResults: [{
+        type: "error",
+        title: "Lỗi xử lý OL",
+        message: error.message
+      }],
+      msChecklistStats: null,
+      olChecklistStats: null,
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+};
   const handleDataCheck = async () => {
-    if (activeTab === "ALL") {
-      await handleAllDataCheck();
-    } else if (activeTab === CHECK_TYPES.PROMOTION) {
-      await handlePromotionDataCheck();
-    } else if (activeTab === CHECK_TYPES.SCORING) {
-      await handleScoringDataCheck();
+    if (activeTab === "OSA_PRO_SMALL") {
+      await handleSmallFormatCheck();
+    } else if (activeTab === "PROMOTION_BIG") {
+      await handleBigFormatCheck();
     }
   };
-  const exportFullResults = async () => {
-    if (!rawWorkbook || (!scoringResults && !promotionResults)) return;
-  
+
+  const exportFullResultsSmall = async () => {
+    if (!rawWorkbook || (!scoringResults && !promotionResults && !bigPromotionResults)) return;
+
     const worker = new Worker(new URL("./workers/excelWorker.js", import.meta.url));
     const rawWorkbookData = XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" });
-  
+
     worker.postMessage({
       rawWorkbookData,
       scoringResults,
       promotionResults,
+      bigPromotionResults,
       sheetNames: rawWorkbook.SheetNames,
     });
-  
+
     worker.onmessage = (e) => {
       const buffer = e.data;
       const blob = new Blob([buffer], {
@@ -215,13 +243,19 @@ export default function App() {
       saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
       worker.terminate();
     };
-  
+
     worker.onerror = (error) => {
       console.error("Worker error:", error);
       worker.terminate();
     };
   };
-
+  const exportFullResultsBig = async () => {
+    try {
+      await exportResultsBig(rawWorkbook, bigPromotionResults);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-100 py-8">
@@ -249,24 +283,18 @@ export default function App() {
               </div>
 
               <Tabs>
-                <TabsList className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <TabsList className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <TabsTrigger
-                    isActive={activeTab === CHECK_TYPES.SCORING}
-                    onClick={() => setActiveTab(CHECK_TYPES.SCORING)}
+                    isActive={activeTab === "OSA_PRO_SMALL"}
+                    onClick={() => setActiveTab("OSA_PRO_SMALL")}
                   >
-                    Kiểm Tra số lượng SKU
+                    Kiểm Tra OSA, Pro Small
                   </TabsTrigger>
                   <TabsTrigger
-                    isActive={activeTab === CHECK_TYPES.PROMOTION}
-                    onClick={() => setActiveTab(CHECK_TYPES.PROMOTION)}
+                    isActive={activeTab === "PROMOTION_BIG"}
+                    onClick={() => setActiveTab("PROMOTION_BIG")}
                   >
-                    Kiểm Tra Dữ Liệu Promotion
-                  </TabsTrigger>
-                  <TabsTrigger
-                    isActive={activeTab === "ALL"}
-                    onClick={() => setActiveTab("ALL")}
-                  >
-                    Kiểm Tra Tất Cả
+                    Kiểm Tra Promotion Big
                   </TabsTrigger>
                 </TabsList>
 
@@ -274,9 +302,8 @@ export default function App() {
                   <Card>
                     <CardHeader>
                       <CardTitle>
-                        {activeTab === CHECK_TYPES.SCORING && "Kiểm Tra số lượng SKU"}
-                        {activeTab === CHECK_TYPES.PROMOTION && "Kiểm Tra Dữ Liệu Promotion"}
-                        {activeTab === "ALL" && "Kiểm Tra Toàn Bộ Dữ Liệu"}
+                        {activeTab === "OSA_PRO_SMALL" && "Kiểm Tra OSA, Pro Small"}
+                        {activeTab === "PROMOTION_BIG" && "Kiểm Tra Promotion Big"}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -293,7 +320,18 @@ export default function App() {
                           {isProcessing ? "Đang Kiểm Tra..." : "Bắt Đầu Kiểm Tra"}
                         </Button>
                         <Button
-                          onClick={exportFullResults}
+                          onClick={()=>
+                            {
+                              if(activeTab === "PROMOTION_BIG")
+                              {
+                                exportFullResultsBig()
+                              }
+                              else
+                              {
+                                exportFullResultsSmall()
+                              }
+
+                            }}
                           disabled={!rawWorkbook || isProcessing}
                           className="bg-green-500 hover:bg-green-600"
                         >
@@ -305,25 +343,7 @@ export default function App() {
                 </TabsContent>
               </Tabs>
 
-              {activeTab === CHECK_TYPES.SCORING && (
-                <ScoringResultDisplay
-                  results={scoringResults}
-                  isLoading={isProcessing}
-                  batchProgress={batchProgress}
-                  progressUpdates={currentProgress}
-                />
-              )}
-
-              {activeTab === CHECK_TYPES.PROMOTION && (
-                <PromotionResultDisplay
-                  results={promotionResults}
-                  isLoading={isProcessing}
-                  batchProgress={batchProgress}
-                  invalidRows={promotionResults?.invalidRows || []}
-                />
-              )}
-
-              {activeTab === "ALL" && (
+              {activeTab === "OSA_PRO_SMALL" && (
                 <>
                   <ScoringResultDisplay
                     results={scoringResults}
@@ -339,6 +359,12 @@ export default function App() {
                   />
                 </>
               )}
+
+              {activeTab === "PROMOTION_BIG"&& (
+               <div>
+                 <BigPromotionResults results={bigPromotionResults} />
+              </div>
+               )}
             </CardContent>
           </Card>
         </div>
