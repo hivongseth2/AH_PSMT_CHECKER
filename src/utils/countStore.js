@@ -130,7 +130,23 @@ export const countStore = async (
       return null;
     }
 
-    const dateKey = rowDate.toISOString().split("T")[0];
+    const year = rowDate.getFullYear();
+    const month = String(rowDate.getMonth() + 1).padStart(2, "0"); // getMonth() trả về 0-11, cần +1
+    const day = String(rowDate.getDate()).padStart(2, "0");
+    const dateKey = `${year}-${month}-${day}`; // Định dạng YYYY-MM-DD theo ngày địa phương
+
+    if (!results.skuCounts[dateKey]) {
+      results.skuCounts[dateKey] = {};
+    }
+    if (!results.skuCounts[dateKey][storeId]) {
+      results.skuCounts[dateKey][storeId] = {
+        actual: 0,
+        actualSKUs: [],
+        expected: 0,
+        expectedSKUs: [],
+        rowIndices: [],
+      };
+    }
     if (!results.skuCounts[dateKey]) {
       results.skuCounts[dateKey] = {};
     }

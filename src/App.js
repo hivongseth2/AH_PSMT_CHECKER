@@ -43,7 +43,6 @@ export default function App() {
     setCurrentProgress((prev) => [...prev, update]);
     if (update.progress) setBatchProgress(update.progress);
   }, []);
-
   const handleAllDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
 
@@ -55,8 +54,7 @@ export default function App() {
     setCurrentProgress([]);
 
     try {
-      // Đọc dữ liệu từ file
-      const checklistData = await processExcelFile(files[FILE_TYPES.CHECKLIST]);
+      // Đọc workbook gốc của raw data để lưu lại
       const rawFileReader = new FileReader();
       const rawPromise = new Promise((resolve) => {
         rawFileReader.onload = (e) => {
@@ -69,9 +67,12 @@ export default function App() {
       const rawWorkbook = await rawPromise;
       setRawWorkbook(rawWorkbook);
 
-      // Xử lý OSA RAW (Sheet 2, index 1)
-      const osaSheet = rawWorkbook.Sheets[rawWorkbook.SheetNames[1]];
-      const osaRawData = XLSX.utils.sheet_to_json(osaSheet, { header: 1 });
+      // Xử lý OSA RAW
+      const [checklistData, osaRawData] = await Promise.all([
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
+        processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
+      ]);
+
       const osaChecklist = processChecklistData(checklistData);
       const osaProcessedRaw = processRawData(osaRawData);
       const osaResults = await countStore(
@@ -81,10 +82,13 @@ export default function App() {
         setBatchProgress
       );
 
-      // Xử lý PROOL (Sheet 6, index 5)
-      const promoSheet = rawWorkbook.Sheets[rawWorkbook.SheetNames[5]];
-      const promoRawData = XLSX.utils.sheet_to_json(promoSheet, { header: 1 });
-      const promoChecklist = processChecklistPromotionData(checklistData);
+      // Xử lý PROOL
+      const [checklistDataPro, promoRawData] = await Promise.all([
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
+        processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
+      ]);
+
+      const promoChecklist = processChecklistPromotionData(checklistDataPro);
       const promoProcessedRaw = processPromotionRawData(promoRawData);
       const promoResults = await checkPromotion(
         promoChecklist,
@@ -95,13 +99,13 @@ export default function App() {
 
       setScoringResults(osaResults);
       setPromotionResults(promoResults);
-
     } catch (error) {
       console.error(error);
     } finally {
       setIsProcessing(false);
     }
   };
+
   const handleScoringDataCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) {
       return;
