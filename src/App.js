@@ -26,7 +26,9 @@ import { saveAs } from "file-saver";
 import { checkPromotionBigMS } from "./utils/checkPromotionBigMS";
 import { checkPromotionBigOL } from "./utils/checkPromotionBigOL";
 import { exportRawDataWithErrors } from "./utils/exportUtils"; // Đổi tên để rõ ràng hơn
-
+import SmallPromotionResults from "./components/SmallOsaPro/SmallResultDisplay";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import UserGuide from "./components/UserGuide/index"; // Import component mới
 export default function App() {
   const [files, setFiles] = useState({
     [FILE_TYPES.CHECKLIST]: null,
@@ -40,12 +42,14 @@ export default function App() {
   const [rawWorkbook, setRawWorkbook] = useState(null);
   const [batchProgress, setBatchProgress] = useState(0);
   const [currentProgress, setCurrentProgress] = useState([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleFileChange = (type) => (event) => {
     setFiles((prev) => ({
       ...prev,
       [type]: event.target.files ? event.target.files[0] : null,
     }));
+    setRawWorkbook(null)
   };
 
   const addProgressUpdate = useCallback((update) => {
@@ -215,7 +219,7 @@ export default function App() {
 
   const exportFullResultsSmall = async () => {
     if (!rawWorkbook || (!scoringResults && !promotionResults && !bigPromotionResults)) return;
-
+    try {
     const worker = new Worker(new URL("./workers/excelWorker.js", import.meta.url));
     const rawWorkbookData = XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" });
 
@@ -233,24 +237,42 @@ export default function App() {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
+      setIsExporting(false);
+
       worker.terminate();
     };
-
     worker.onerror = (error) => {
       console.error("Worker error:", error);
       worker.terminate();
     };
+  }
+  catch (e) {
+    console.error(e);
+    setIsExporting(false);
+    alert("Lỗi xuất file excel");
+    }
+
+ 
   };
 
   const exportFullResultsBig = async () => {
+
     try {
-      await exportRawDataWithErrors(rawWorkbook, bigPromotionResults);
+      
+
+      await exportRawDataWithErrors(rawWorkbook, bigPromotionResults).then(()=>
+      {
+        setIsExporting(false);
+      })
     } catch (error) {
       alert(error.message);
+      setIsExporting(false);
     }
+   
   };
 
   return (
+    <Router>
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-100 py-8">
         <div className="container mx-auto px-4">
@@ -259,12 +281,18 @@ export default function App() {
               <CardTitle className="text-2xl font-bold text-blue-900">
                 Kiểm Tra PSMT- An Hòa
               </CardTitle>
+              <Link
+                to="/guide"
+                className="text-blue-600 hover:underline mt-2 block"
+              >
+                Xem Hướng Dẫn Sử Dụng
+              </Link>
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <FileUpload
                   label="File Kiểm Tra (Checklist)"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.xlsb"
                   onChange={handleFileChange(FILE_TYPES.CHECKLIST)}
                   file={files[FILE_TYPES.CHECKLIST]}
                 />
@@ -315,16 +343,21 @@ export default function App() {
                         </Button>
                         <Button
                           onClick={() => {
-                            if (activeTab === "PROMOTION_BIG") {
-                              exportFullResultsBig();
-                            } else {
-                              exportFullResultsSmall();
-                            }
+                            setIsExporting(true);
+                            setTimeout(() => {
+                              if (activeTab === "PROMOTION_BIG") {
+                                exportFullResultsBig();
+                              } else {
+                                exportFullResultsSmall();
+                              }
+                            }, 500);
+                        
                           }}
-                          disabled={!rawWorkbook || isProcessing}
+                          disabled={!rawWorkbook || isProcessing || isExporting}
+                          isLoading={isExporting}
                           className="bg-green-500 hover:bg-green-600"
                         >
-                          Xuất Raw Data
+                          Xuất dữ liệu kiểm tra 
                         </Button>
                       </div>
                     </CardContent>
@@ -332,20 +365,17 @@ export default function App() {
                 </TabsContent>
               </Tabs>
 
-              {activeTab === "OSA_PRO_SMALL" && (
+              {activeTab === "OSA_PRO_SMALL" && scoringResults!= null && promotionResults!= null &&(
                 <>
-                  <ScoringResultDisplay
-                    results={scoringResults}
-                    isLoading={isProcessing}
+                <SmallPromotionResults 
+                    osaResults={scoringResults}
+                    isProcessing={isProcessing}
                     batchProgress={batchProgress}
-                    progressUpdates={currentProgress}
-                  />
-                  <PromotionResultDisplay
-                    results={promotionResults}
-                    isLoading={isProcessing}
-                    batchProgress={batchProgress}
-                    invalidRows={promotionResults?.invalidRows || []}
-                  />
+                    currentProgress={currentProgress}
+                    promotionResults={promotionResults}
+                    
+                    ></SmallPromotionResults>
+               
                 </>
               )}
 
@@ -358,6 +388,14 @@ export default function App() {
           </Card>
         </div>
       </div>
+
+    
     </ErrorBoundary>
+
+
+<Routes>
+<Route path="/guide" element={<UserGuide />} />
+</Routes>
+</Router>
   );
 }
