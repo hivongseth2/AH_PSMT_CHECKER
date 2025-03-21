@@ -184,11 +184,21 @@ export const processChecklistBigFormatData = (data) => {
   });
 
   // Step 5: Process promotion data and compute statistics
-  const customerStats = {};
+  const customerStats = {
+    MS: {},
+    OL: {},
+  };
 
-  const promotions = promotionData.map((row) => {
+  const promotions = {
+    MS: [],
+    OL: [],
+  };
+
+  // Step 6: Process each row of promotion data
+  promotionData.forEach((row, rowIndex) => {
     const item = {};
 
+    // Map headers to item properties
     promotionHeaders.forEach((header, index) => {
       const cellValue = row[index];
 
@@ -215,59 +225,117 @@ export const processChecklistBigFormatData = (data) => {
       }
     });
 
-    // Compute statistics for each customer
     const customer = item["CUSTOMER"] || "Unknown";
-    if (!customerStats[customer]) {
-      customerStats[customer] = {
-        totalPromotions: 0,
-        auditedPromotions: 0,
-        dateRanges: new Set(),
-        storeAuditCounts: {},
-      };
-    }
+    const promotionId = item["PROMOTION ID"];
 
-    customerStats[customer].totalPromotions += 1;
-
+    // Process for MS (based on "AUDIT ON MS" = "Y")
     if (item["AUDIT ON MS"] === "Y") {
-      customerStats[customer].auditedPromotions += 1;
+      if (!customerStats.MS[customer]) {
+        customerStats.MS[customer] = {
+          totalPromotions: 0,
+          auditedPromotions: 0,
+          dateRanges: new Set(),
+          storeAuditCounts: {},
+        };
+      }
+
+      customerStats.MS[customer].totalPromotions += 1;
+      customerStats.MS[customer].auditedPromotions += 1;
 
       // Collect date ranges
       const rangeKey = `${item["START DATE"].toLocaleDateString("en-GB")}-${item["END DATE"].toLocaleDateString("en-GB")}`;
-      customerStats[customer].dateRanges.add(rangeKey);
+      customerStats.MS[customer].dateRanges.add(rangeKey);
 
       // Store audit counts
       if (item.stores) {
         Object.entries(item.stores).forEach(([storeCode, isAudited]) => {
           if (isAudited) {
-            customerStats[customer].storeAuditCounts[storeCode] =
-              (customerStats[customer].storeAuditCounts[storeCode] || 0) + 1;
+            customerStats.MS[customer].storeAuditCounts[storeCode] =
+              (customerStats.MS[customer].storeAuditCounts[storeCode] || 0) + 1;
           }
         });
       }
+
+      promotions.MS.push(item);
     }
 
-    return item;
+    // Process for OL (based on "Y" in store columns)
+    let hasYForOL = false;
+    if (item.stores) {
+      hasYForOL = Object.values(item.stores).some(isAudited => isAudited === true);
+    }
+
+    if (hasYForOL) {
+      if (!customerStats.OL[customer]) {
+        customerStats.OL[customer] = {
+          totalPromotions: 0,
+          auditedPromotions: 0,
+          dateRanges: new Set(),
+          storeAuditCounts: {},
+        };
+      }
+
+      customerStats.OL[customer].totalPromotions += 1;
+      customerStats.OL[customer].auditedPromotions += 1;
+
+      // Collect date ranges
+      const rangeKey = `${item["START DATE"].toLocaleDateString("en-GB")}-${item["END DATE"].toLocaleDateString("en-GB")}`;
+      customerStats.OL[customer].dateRanges.add(rangeKey);
+
+      // Store audit counts
+      if (item.stores) {
+        Object.entries(item.stores).forEach(([storeCode, isAudited]) => {
+          if (isAudited) {
+            customerStats.OL[customer].storeAuditCounts[storeCode] =
+              (customerStats.OL[customer].storeAuditCounts[storeCode] || 0) + 1;
+          }
+        });
+      }
+
+      promotions.OL.push(item);
+    }
   });
 
-  // Step 6: Compile statistics
+  // Step 7: Compile statistics
   const statistics = {
-    customerStats: Object.keys(customerStats).reduce((acc, customer) => {
-      acc[customer] = {
-        totalPromotions: customerStats[customer].totalPromotions,
-        auditedPromotions: customerStats[customer].auditedPromotions,
-        totalStores: Object.keys(customerStats[customer].storeAuditCounts).length,
-        dateRanges: Array.from(customerStats[customer].dateRanges).map(range => {
-          const [start, end] = range.split("-");
-          return {
-            startDate: start,
-            endDate: end
-          };
-        }),
-        storeAuditCounts: customerStats[customer].storeAuditCounts,
-      };
-      return acc;
-    }, {}),
-    totalStores: uniqueStoreCodes.size,
+    MS: {
+      customerStats: Object.keys(customerStats.MS).reduce((acc, customer) => {
+        acc[customer] = {
+          totalPromotions: customerStats.MS[customer].totalPromotions,
+          auditedPromotions: customerStats.MS[customer].auditedPromotions,
+          totalStores: Object.keys(customerStats.MS[customer].storeAuditCounts).length,
+          dateRanges: Array.from(customerStats.MS[customer].dateRanges).map(range => {
+            const [start, end] = range.split("-");
+            return {
+              startDate: start,
+              endDate: end
+            };
+          }),
+          storeAuditCounts: customerStats.MS[customer].storeAuditCounts,
+        };
+        return acc;
+      }, {}),
+      totalStores: uniqueStoreCodes.size,
+    },
+    OL: {
+      customerStats: Object.keys(customerStats.OL).reduce((acc, customer) => {
+        acc[customer] = {
+          totalPromotions: customerStats.OL[customer].totalPromotions,
+          auditedPromotions: customerStats.OL[customer].auditedPromotions,
+          totalStores: Object.keys(customerStats.OL[customer].storeAuditCounts).length,
+          dateRanges: Array.from(customerStats.OL[customer].dateRanges).map(range => {
+            const [start, end] = range.split("-");
+            return {
+              startDate: start,
+              endDate: end
+            };
+          }),
+          storeAuditCounts: customerStats.OL[customer].storeAuditCounts,
+        };
+        return acc;
+      }, {}),
+      totalStores: uniqueStoreCodes.size,
+    },
   };
 
   return {
@@ -294,10 +362,12 @@ export const processBIGPromotionRawData = (data, sheetName) => {
     "PS Category ID": "PSCategoryID",
     "PS Category": "PSCategory",
     "Product_id": "ProductID",
-    "PromotionID": "PromotionID",
+    "PromotionID": "PromotionID", // For MS
+    "Promotion_id": "PromotionID", // For OL
     "Product": "Product",
     "Mechanic": "Mechanic",
     "Vị trí": "Position",
+    "Số vị trí chấm": "PositionCount",
     "Hiện diện SP (1/0)": "ProductPresence",
     "Nội dung KM (1/0)": "PromotionContent",
     "Thông báo KM (1/0)": "PromotionNotice",
@@ -312,7 +382,7 @@ export const processBIGPromotionRawData = (data, sheetName) => {
     "SR không đồng ý": "SRDisagree",
     "Nội dung phản hồi": "ResponseContent",
     "AH phản hồi": "AHResponse",
-    "AUDIT": "AuditStatus",
+    "AUDITOR": "Auditor",
   };
 
   // Map the raw headers to standardized keys
@@ -339,11 +409,11 @@ export const processBIGPromotionRawData = (data, sheetName) => {
           if (cellValue.includes("-")) {
             // Format: "YYYY-MM-DD" (e.g., "2025-03-01")
             const [year, month, day] = cellValue.split("-");
-            cellValue = new Date(`${year}-${month}-${day}`);
+            cellValue = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
           } else if (cellValue.includes("/")) {
             // Format: "DD/MM/YYYY" (e.g., "01/03/2025")
             const [day, month, year] = cellValue.split("/");
-            cellValue = new Date(`${year}-${month}-${day}`);
+            cellValue = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
           } else {
             throw new Error(`Invalid date format in raw data (${sheetName}): ${cellValue}`);
           }
@@ -353,11 +423,11 @@ export const processBIGPromotionRawData = (data, sheetName) => {
       item[header] = cellValue;
     });
 
+    // Log từng dòng để kiểm tra
+    console.log(`Dòng trong sheet ${sheetName}:`, item);
+
     // Filter out items where Result is not 1 (assuming Kết quả (1/0) indicates audit completion)
-    if (
-      item["ProductID"] !== undefined 
-   
-    ) {
+    if (item["ProductID"] !== undefined) {
       const uniqueKey = `${item["StoreID"]}_${item["PromotionID"]}_${item["ProductID"]}`;
       const existingItem = uniqueItems.get(uniqueKey);
 
