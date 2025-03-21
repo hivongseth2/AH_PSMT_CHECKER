@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from "react";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import { Button } from "./components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
 import FileUpload from "./components/FileUpload";
-import ScoringResultDisplay from "./components/ScoringResultDisplay";
-import PromotionResultDisplay from "./components/PromotionResultDisplay";
 import ErrorBoundary from "./components/errorBoundary";
 import { CHECK_TYPES, FILE_TYPES } from "./lib/constants";
-import BigPromotionResults from './components/BigPromotion/BigPromotionResults';
+import BigPromotionResults from "./components/BigPromotion/BigPromotionResults";
+import SmallPromotionResults from "./components/SmallOsaPro/SmallResultDisplay";
+import UserGuide from "./components/UserGuide"; // Điều chỉnh đường dẫn nếu cần
 import {
   processExcelFile,
   processChecklistData,
@@ -15,21 +16,18 @@ import {
   processChecklistPromotionData,
   processPromotionRawData,
   processChecklistBigFormatData,
-  processBIGPromotionRawData
+  processBIGPromotionRawData,
 } from "./utils/excelUtils";
 import { countStore } from "./utils/countStore";
 import { checkPromotion } from "./utils/checkPromotionSF";
+import { checkPromotionBigMS } from "./utils/checkPromotionBigMS";
+import { checkPromotionBigOL } from "./utils/checkPromotionBigOL";
+import { exportRawDataWithErrors } from "./utils/exportUtils";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
-// New imports for Big Format logic
-import { checkPromotionBigMS } from "./utils/checkPromotionBigMS";
-import { checkPromotionBigOL } from "./utils/checkPromotionBigOL";
-import { exportRawDataWithErrors } from "./utils/exportUtils"; // Đổi tên để rõ ràng hơn
-import SmallPromotionResults from "./components/SmallOsaPro/SmallResultDisplay";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import UserGuide from "./components/UserGuide/index"; // Import component mới
-export default function App() {
+// Component chính cho giao diện kiểm tra PSMT
+function MainApp() {
   const [files, setFiles] = useState({
     [FILE_TYPES.CHECKLIST]: null,
     [FILE_TYPES.RAW_DATA]: null,
@@ -49,7 +47,7 @@ export default function App() {
       ...prev,
       [type]: event.target.files ? event.target.files[0] : null,
     }));
-    setRawWorkbook(null)
+    setRawWorkbook(null);
   };
 
   const addProgressUpdate = useCallback((update) => {
@@ -57,7 +55,6 @@ export default function App() {
     if (update.progress) setBatchProgress(update.progress);
   }, []);
 
-  // Handle Small Format OSA + Promotion Check
   const handleSmallFormatCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
 
@@ -70,7 +67,6 @@ export default function App() {
     setCurrentProgress([]);
 
     try {
-      // Read the raw workbook for export later
       const rawFileReader = new FileReader();
       const rawPromise = new Promise((resolve) => {
         rawFileReader.onload = (e) => {
@@ -83,7 +79,6 @@ export default function App() {
       const rawWorkbook = await rawPromise;
       setRawWorkbook(rawWorkbook);
 
-      // Process OSA
       const [checklistData, osaRawData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
@@ -98,7 +93,6 @@ export default function App() {
         setBatchProgress
       );
 
-      // Process PROOL (Small Format Promotion)
       const [checklistDataPro, promoRawData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
@@ -128,7 +122,6 @@ export default function App() {
     }
   };
 
-  // Handle Big Format Promotion Check (MS and OL)
   const handleBigFormatCheck = async () => {
     if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
 
@@ -141,7 +134,6 @@ export default function App() {
     setCurrentProgress([]);
 
     try {
-      // Read the raw workbook for export later
       const rawFileReader = new FileReader();
       const rawPromise = new Promise((resolve) => {
         rawFileReader.onload = (e) => {
@@ -154,17 +146,14 @@ export default function App() {
       const rawWorkbook = await rawPromise;
       setRawWorkbook(rawWorkbook);
 
-      // Process Big Format MS Promotion
       const [checklistData, rawDataMS, rawDataOL] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "3. Pro MS & 4. Pro OL"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "PROMS"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL_Dup"),
       ]);
 
-      // Process checklist data (for both MS and OL)
       const { promotions, statistics } = processChecklistBigFormatData(checklistData);
 
-      // Process MS
       const processedRawDataMS = processBIGPromotionRawData(rawDataMS, "PROMS");
       const msResults = await checkPromotionBigMS(
         promotions.MS,
@@ -173,10 +162,9 @@ export default function App() {
         setBatchProgress
       );
 
-      // Process OL
-      const processedRawDataOL = processBIGPromotionRawData(rawDataOL, "PROOL_Dup"); // Sửa: Dùng processBIGPromotionRawData thay vì processPromotionRawData
+      const processedRawDataOL = processBIGPromotionRawData(rawDataOL, "PROOL_Dup");
       const olResults = await checkPromotionBigOL(
-        promotions.OL, // Sửa: Truyền promotions.OL thay vì olPromotions
+        promotions.OL,
         processedRawDataOL,
         addProgressUpdate,
         setBatchProgress
@@ -191,16 +179,8 @@ export default function App() {
     } catch (error) {
       console.error(error);
       setBigPromotionResults({
-        msResults: [{
-          type: "error",
-          title: "Lỗi xử lý MS",
-          message: error.message
-        }],
-        olResults: [{
-          type: "error",
-          title: "Lỗi xử lý OL",
-          message: error.message
-        }],
+        msResults: [{ type: "error", title: "Lỗi xử lý MS", message: error.message }],
+        olResults: [{ type: "error", title: "Lỗi xử lý OL", message: error.message }],
         msChecklistStats: null,
         olChecklistStats: null,
       });
@@ -220,59 +200,49 @@ export default function App() {
   const exportFullResultsSmall = async () => {
     if (!rawWorkbook || (!scoringResults && !promotionResults && !bigPromotionResults)) return;
     try {
-    const worker = new Worker(new URL("./workers/excelWorker.js", import.meta.url));
-    const rawWorkbookData = XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" });
+      const worker = new Worker(new URL("./workers/excelWorker.js", import.meta.url));
+      const rawWorkbookData = XLSX.write(rawWorkbook, { type: "buffer", bookType: "xlsx" });
 
-    worker.postMessage({
-      rawWorkbookData,
-      scoringResults,
-      promotionResults,
-      bigPromotionResults,
-      sheetNames: rawWorkbook.SheetNames,
-    });
-
-    worker.onmessage = (e) => {
-      const buffer = e.data;
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      worker.postMessage({
+        rawWorkbookData,
+        scoringResults,
+        promotionResults,
+        bigPromotionResults,
+        sheetNames: rawWorkbook.SheetNames,
       });
-      saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
+
+      worker.onmessage = (e) => {
+        const buffer = e.data;
+        const blob = new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        saveAs(blob, `ket_qua_full_raw_data_${new Date().toISOString()}.xlsx`);
+        setIsExporting(false);
+        worker.terminate();
+      };
+      worker.onerror = (error) => {
+        console.error("Worker error:", error);
+        worker.terminate();
+      };
+    } catch (e) {
+      console.error(e);
       setIsExporting(false);
-
-      worker.terminate();
-    };
-    worker.onerror = (error) => {
-      console.error("Worker error:", error);
-      worker.terminate();
-    };
-  }
-  catch (e) {
-    console.error(e);
-    setIsExporting(false);
-    alert("Lỗi xuất file excel");
+      alert("Lỗi xuất file excel");
     }
-
- 
   };
 
   const exportFullResultsBig = async () => {
-
     try {
-      
-
-      await exportRawDataWithErrors(rawWorkbook, bigPromotionResults).then(()=>
-      {
+      await exportRawDataWithErrors(rawWorkbook, bigPromotionResults).then(() => {
         setIsExporting(false);
-      })
+      });
     } catch (error) {
       alert(error.message);
       setIsExporting(false);
     }
-   
   };
 
   return (
-    <Router>
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-100 py-8">
         <div className="container mx-auto px-4">
@@ -281,10 +251,7 @@ export default function App() {
               <CardTitle className="text-2xl font-bold text-blue-900">
                 Kiểm Tra PSMT- An Hòa
               </CardTitle>
-              <Link
-                to="/guide"
-                className="text-blue-600 hover:underline mt-2 block"
-              >
+              <Link to="/guide" className="text-blue-600 hover:underline mt-2 block">
                 Xem Hướng Dẫn Sử Dụng
               </Link>
             </CardHeader>
@@ -351,13 +318,12 @@ export default function App() {
                                 exportFullResultsSmall();
                               }
                             }, 500);
-                        
                           }}
                           disabled={!rawWorkbook || isProcessing || isExporting}
                           isLoading={isExporting}
                           className="bg-green-500 hover:bg-green-600"
                         >
-                          Xuất dữ liệu kiểm tra 
+                          Xuất dữ liệu kiểm tra
                         </Button>
                       </div>
                     </CardContent>
@@ -365,18 +331,14 @@ export default function App() {
                 </TabsContent>
               </Tabs>
 
-              {activeTab === "OSA_PRO_SMALL" && scoringResults!= null && promotionResults!= null &&(
-                <>
-                <SmallPromotionResults 
-                    osaResults={scoringResults}
-                    isProcessing={isProcessing}
-                    batchProgress={batchProgress}
-                    currentProgress={currentProgress}
-                    promotionResults={promotionResults}
-                    
-                    ></SmallPromotionResults>
-               
-                </>
+              {activeTab === "OSA_PRO_SMALL" && scoringResults != null && promotionResults != null && (
+                <SmallPromotionResults
+                  osaResults={scoringResults}
+                  isProcessing={isProcessing}
+                  batchProgress={batchProgress}
+                  currentProgress={currentProgress}
+                  promotionResults={promotionResults}
+                />
               )}
 
               {activeTab === "PROMOTION_BIG" && (
@@ -388,14 +350,17 @@ export default function App() {
           </Card>
         </div>
       </div>
-
-    
     </ErrorBoundary>
+  );
+}
 
-
-<Routes>
-<Route path="/guide" element={<UserGuide />} />
-</Routes>
-</Router>
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/guide" element={<UserGuide />} />
+      </Routes>
+    </Router>
   );
 }
