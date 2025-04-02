@@ -198,6 +198,7 @@ function MainApp() {
   };
 
   const exportFullResultsSmall = async () => {
+
     if (!rawWorkbook || (!scoringResults && !promotionResults && !bigPromotionResults)) return;
     try {
       const worker = new Worker(new URL("./workers/excelWorker.js", import.meta.url));
