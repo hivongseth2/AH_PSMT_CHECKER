@@ -424,7 +424,6 @@ export const processBIGPromotionRawData = (data, sheetName) => {
     });
 
     // Log từng dòng để kiểm tra
-    console.log(`Dòng trong sheet ${sheetName}:`, item);
 
     // Filter out items where Result is not 1 (assuming Kết quả (1/0) indicates audit completion)
     if (item["ProductID"] !== undefined) {
@@ -439,4 +438,235 @@ export const processBIGPromotionRawData = (data, sheetName) => {
 
     return acc;
   }, []);
+};
+
+export const processChecklistBigOSAData = (data) => {
+  const TARGET_STORE_CODES = [
+    "STR-BIG",
+    "STR-COPM",
+    "STR-INDN",
+    "STR-VINM",
+    "STR-LANC",
+    "STR-THAD",
+    "STR-VINM",
+  ];
+
+  // Step 1: Identify the main headers (Row 12, index 11)
+  const headers = data[11];
+  if (!headers || !headers.includes("ITEM CODE")) {
+    throw new Error("Could not find main headers (expected 'ITEM CODE' in Row 12).");
+  }
+
+  // Step 2: Get the store code mappings (Row 11, index 10)
+  const storeCodeMappings = data[10];
+  if (!storeCodeMappings || !storeCodeMappings.some(code => code && code.startsWith("STR-"))) {
+    throw new Error("Could not find Store Code mappings in Row 11.");
+  }
+
+  // Step 3: Process OSA data (starting from Row 13, index 12)
+  const osaData = data.slice(12).filter(row => row[0]);
+
+  // Step 4: Create a mapping of store names to Store Code
+  const storeNameToCodeMap = {};
+  const uniqueStoreCodes = new Set();
+
+  headers.forEach((header, index) => {
+    const storeCode = storeCodeMappings[index];
+    if (storeCode && TARGET_STORE_CODES.some(prefix => storeCode.startsWith(prefix))) {
+      storeNameToCodeMap[header] = storeCode;
+      uniqueStoreCodes.add(storeCode);
+    }
+  });
+
+
+  // Step 5: Group items by Store Code
+  const storeItemsMap = new Map();
+
+  osaData.forEach((row) => {
+    const item = {};
+
+    // Map headers to item properties
+    headers.forEach((header, index) => {
+      const cellValue = row[index];
+
+      // Handle date fields
+      if (["START DATE", "END DATE", "Date"].includes(header)) {
+        if (typeof cellValue === "number") {
+          item[header] = excelSerialToDate(cellValue);
+        } else if (typeof cellValue === "string") {
+          // Chuyển chuỗi ISO thành đối tượng Date
+          item[header] = new Date(cellValue);
+        } else {
+          item[header] = cellValue;
+        }
+      }
+      // Handle store-specific columns
+      else if (storeNameToCodeMap[header]) {
+        if (!item.stores) item.stores = {};
+        const storeCode = storeNameToCodeMap[header];
+        item.stores[storeCode] = cellValue || "";
+      }
+      // Handle other columns
+      else {
+        item[header] = cellValue;
+      }
+    });
+
+
+
+    // Chỉ giữ lại các thông tin cần thiết
+    // Bỏ qua nếu START DATE hoặc END DATE rỗng
+    if (
+      item["ITEM CODE"] &&
+      item["START DATE"] &&
+      item["END DATE"] &&
+      item.stores &&
+      !isNaN(item["START DATE"].getTime()) &&
+      !isNaN(item["END DATE"].getTime())
+    ) {
+      const itemCode = item["ITEM CODE"];
+      const startDate = item["START DATE"];
+      const endDate = item["END DATE"];
+
+      Object.entries(item.stores).forEach(([storeCode, value]) => {
+        // Chỉ thêm itemCode nếu giá trị tại ô giao với cột của cửa hàng khác rỗng
+        if (value === undefined || value === null || value === "") return;
+
+        if (!storeItemsMap.has(storeCode)) {
+          storeItemsMap.set(storeCode, {
+            storeCode,
+            itemCodes: new Map(), // Sử dụng Map để lưu itemCode cùng với startDate và endDate
+          });
+        }
+
+        const storeEntry = storeItemsMap.get(storeCode);
+        storeEntry.itemCodes.set(itemCode, { startDate, endDate });
+      });
+    }
+  });
+
+  const storeItems = Array.from(storeItemsMap.entries()).map(([storeCode, entry]) => ({
+    storeCode,
+    itemCodes: Array.from(entry.itemCodes.entries()).map(([itemCode, { startDate, endDate }]) => ({
+      itemCode,
+      startDate,
+      endDate,
+    })),
+  }));
+
+  // Log kết quả cuối cùng để kiểm tra
+  return { storeItems };
+};
+export const processBigOSARawData = (data, sheetName) => {
+  const headers = data[0];
+
+  // Define header mappings for Big Format OSA
+  const headerMapping = {
+    "Report of month": "ReportMonth",
+    "Loại": "Type",
+    "Date": "Date",
+    "Time": "Time",
+    "Store ID - Unilever": "StoreID",
+    "Store_name": "StoreName",
+    "Customer ID": "CustomerID",
+    "Customer": "Customer",
+    "Supervisor": "Supervisor",
+    "PS Category ID": "PSCategoryID",
+    "PS Category": "PSCategory",
+    "Product_id": "ProductID",
+    "Product_name": "ProductName",
+    "Vị trí": "Position",
+    "Target": "Target",
+    "Stock": "Stock",
+    "VOID (0/1/Blank)": "Void",
+    "OSA (1/0)": "OSA",
+    "Lý do rớt": "ReasonFail",
+    "Comment": "Comment",
+    "Reject (1/0)": "Reject",
+    "Lý do Reject": "RejectReason",
+    "Team dự án Revise": "TeamProjectRevise",
+    "Team dự án phản hồi": "TeamProjectResponse",
+    "Final Reject": "FinalReject",
+    "SR không đồng ý": "SRDisagree",
+    "Nội dung phản hồi": "ResponseContent",
+    "AH phản hồi": "AHResponse",
+    "AUDIT": "Audit",
+    "AUDIT CODE": "AuditCode",
+  };
+
+  // Map the raw headers to standardized keys
+  const mappedHeaders = headers.map((header) => headerMapping[header] || header);
+
+  // Validate required headers
+  const requiredHeaders = ["StoreID", "ProductID", "Date"];
+  const missingHeaders = requiredHeaders.filter((header) => !mappedHeaders.includes(header));
+  if (missingHeaders.length > 0) {
+    throw new Error(`Missing required headers in raw data (${sheetName}): ${missingHeaders.join(", ")}`);
+  }
+
+  // Group raw data by StoreID and Date
+  const storeDateMap = new Map();
+
+  data.slice(1).forEach((row) => {
+    const item = {};
+    mappedHeaders.forEach((header, index) => {
+      let cellValue = row[index];
+
+      // Handle date fields
+      if (header === "Date") {
+        if (typeof cellValue === "number") {
+          cellValue = excelSerialToDate(cellValue);
+        } else if (typeof cellValue === "string") {
+          if (cellValue.includes("-")) {
+            const [year, month, day] = cellValue.split("-");
+            cellValue = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+          } else if (cellValue.includes("/")) {
+            const [day, month, year] = cellValue.split("/");
+            cellValue = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+          } else {
+            throw new Error(`Invalid date format in raw data (${sheetName}): ${cellValue}`);
+          }
+        }
+      }
+
+      item[header] = cellValue;
+    });
+
+    // Chỉ giữ lại các bản ghi hợp lệ
+    if (item["ProductID"] && item["StoreID"] && item["Date"]) {
+      const storeId = item["StoreID"];
+      const dateKey = item["Date"].toISOString().split("T")[0]; // Lấy ngày dạng YYYY-MM-DD
+      const key = `${storeId}_${dateKey}`;
+
+      if (!storeDateMap.has(storeId)) {
+        storeDateMap.set(storeId, new Map());
+      }
+
+      const storeEntry = storeDateMap.get(storeId);
+      if (!storeEntry.has(dateKey)) {
+        storeEntry.set(dateKey, {
+          date: item["Date"],
+          itemCodes: new Set(),
+        });
+      }
+
+      storeEntry.get(dateKey).itemCodes.add(item["ProductID"]);
+    }
+  });
+
+  // Chọn ngày chấm duy nhất cho mỗi cửa hàng (ngày đầu tiên trong khoảng thời gian)
+  const storeRawData = Array.from(storeDateMap.entries()).map(([storeId, dateMap]) => {
+    const dates = Array.from(dateMap.entries());
+    if (dates.length === 0) return null;
+
+    // Chọn ngày đầu tiên
+    const [dateKey, entry] = dates[0];
+    return {
+      storeId,
+      date: entry.date,
+      itemCodes: Array.from(entry.itemCodes),
+    };
+  }).filter(entry => entry !== null);
+
+  return storeRawData;
 };

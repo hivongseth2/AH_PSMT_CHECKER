@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
 import FileUpload from "./components/FileUpload";
 import ErrorBoundary from "./components/errorBoundary";
 import { CHECK_TYPES, FILE_TYPES } from "./lib/constants";
-import BigPromotionResults from "./components/BigPromotion/BigPromotionResults";
+import BigPromotionResults from "./components/BigFormat/BigPromotionResults";
 import SmallPromotionResults from "./components/SmallOsaPro/SmallResultDisplay";
 import UserGuide from "./components/UserGuide"; // Điều chỉnh đường dẫn nếu cần
 import {
@@ -17,12 +17,15 @@ import {
   processPromotionRawData,
   processChecklistBigFormatData,
   processBIGPromotionRawData,
+  processChecklistBigOSAData, // Thêm import
+  processBigOSARawData
 } from "./utils/excelUtils";
 import { countStore } from "./utils/countStore";
 import { checkPromotion } from "./utils/checkPromotionSF";
 import { checkPromotionBigMS } from "./utils/checkPromotionBigMS";
 import { checkPromotionBigOL } from "./utils/checkPromotionBigOL";
 import { exportRawDataWithErrors } from "./utils/exportUtils";
+import { checkBigOSA } from "./utils/checkOSABig"; // Thêm import
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
@@ -146,10 +149,12 @@ function MainApp() {
       const rawWorkbook = await rawPromise;
       setRawWorkbook(rawWorkbook);
 
-      const [checklistData, rawDataMS, rawDataOL] = await Promise.all([
+      const [checklistData, rawDataMS, rawDataOL, checklistDataOSA, rawDataOSA] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "3. Pro MS & 4. Pro OL"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "PROMS"),
         processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL_Dup"),
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "1. OSA"), // Load checklist OSA
+        processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA"), // Load raw data OSA
       ]);
 
       const { promotions, statistics } = processChecklistBigFormatData(checklistData);
@@ -170,24 +175,45 @@ function MainApp() {
         setBatchProgress
       );
 
+  
+
+      // Process OSA data
+      const { storeItems } = processChecklistBigOSAData(checklistDataOSA); // Sửa thành storeItems
+        const processedRawDataOSA = processBigOSARawData(rawDataOSA, "OSA");        
+      
+        const osaResults = await checkBigOSA(
+          storeItems, // Sửa thành storeItems
+          processedRawDataOSA,
+          addProgressUpdate,
+          setBatchProgress
+        );        
+
+
       setBigPromotionResults({
         msResults,
         olResults,
         msChecklistStats: statistics.MS,
         olChecklistStats: statistics.OL,
+        osaResults, // Thêm kết quả OSA
       });
     } catch (error) {
       console.error(error);
       setBigPromotionResults({
         msResults: [{ type: "error", title: "Lỗi xử lý MS", message: error.message }],
         olResults: [{ type: "error", title: "Lỗi xử lý OL", message: error.message }],
+        osaResults: [{ type: "error", title: "Lỗi xử lý OSA", message: error.message }],
         msChecklistStats: null,
         olChecklistStats: null,
+        osaChecklistStats: null,
       });
     } finally {
       setIsProcessing(false);
     }
+   
   };
+
+
+
 
   const handleDataCheck = async () => {
     if (activeTab === "OSA_PRO_SMALL") {
