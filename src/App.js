@@ -310,7 +310,7 @@ function MainApp() {
                     isActive={activeTab === "PROMOTION_BIG"}
                     onClick={() => setActiveTab("PROMOTION_BIG")}
                   >
-                    Kiểm Tra Promotion Big
+                    Kiểm Tra Big Format
                   </TabsTrigger>
                 </TabsList>
 
@@ -319,7 +319,7 @@ function MainApp() {
                     <CardHeader>
                       <CardTitle>
                         {activeTab === "OSA_PRO_SMALL" && "Kiểm Tra OSA, Pro Small"}
-                        {activeTab === "PROMOTION_BIG" && "Kiểm Tra Promotion Big"}
+                        {activeTab === "PROMOTION_BIG" && "Kiểm Tra Big Format"}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>

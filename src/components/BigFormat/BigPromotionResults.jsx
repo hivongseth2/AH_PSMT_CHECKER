@@ -38,7 +38,7 @@ const BigPromotionResults = ({ results }) => {
     <div className="container mx-auto py-6">
       <Card className="shadow-lg border-0">
         <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-t-lg">
-          <CardTitle className="text-2xl font-bold">Kết Quả Kiểm Tra Khuyến Mãi Big Format</CardTitle>
+          <CardTitle className="text-2xl font-bold">Kết Quả Kiểm Tra Big Format</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <Tabs defaultValue="ms" className="w-full" onValueChange={setActiveTab}>

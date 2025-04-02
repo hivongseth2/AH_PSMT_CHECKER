@@ -275,7 +275,7 @@ export default function UserGuide() {
                     <h3 className="text-lg font-medium text-gray-800 mb-4 border-b pb-2">Các Bước Thực Hiện:</h3>
                     <ol className="list-decimal ml-6 text-gray-700 space-y-3">
                       <li className="bg-gray-50 p-3 rounded">
-                        Chọn tab <strong className="text-purple-700">"Kiểm Tra Promotion Big"</strong>.
+                        Chọn tab <strong className="text-purple-700">"Kiểm Tra Big Format"</strong>.
                       </li>
                       <li className="bg-gray-50 p-3 rounded">
                         Tải lên <strong className="text-purple-700">File Checklist</strong> và{" "}
