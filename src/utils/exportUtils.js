@@ -269,7 +269,7 @@ export const exportRawDataWithErrors = async (rawWorkbook, bigPromotionResults) 
       const sheet = workbook.addWorksheet(sheetName);
       const sheetData = XLSX.utils.sheet_to_json(rawWorkbook.Sheets[sheetName], { header: 1 });
       const headers = sheetData[0];
-      console.log(`Sheet ${sheetName}: Số cột trong header: ${headers.length}`);
+      // console.log(`Sheet ${sheetName}: Số cột trong header: ${headers.length}`);
 
       // Kiểm tra số cột
       if (headers.length >= MAX_EXCEL_COLUMNS) {
@@ -293,15 +293,17 @@ export const exportRawDataWithErrors = async (rawWorkbook, bigPromotionResults) 
         const promotionId = row[headers.indexOf(promotionIdColumn)];
 
         if (!storeId || !dateRaw || !promotionId) {
-          console.warn(
-            `Dòng ${index + 2}: Thiếu dữ liệu - StoreID=${storeId}, Date=${dateRaw}, PromotionID=${promotionId}`
-          );
+          // console.warn(
+          //   `Dòng ${index + 2}: Thiếu dữ liệu - StoreID=${storeId}, Date=${dateRaw}, PromotionID=${promotionId}`
+          // );
           return;
         }
 
         const auditDate = parseDate(dateRaw);
+
+        console.log(auditDate,'02020202')
         if (!auditDate || isNaN(auditDate.getTime())) {
-          console.warn(`Dòng ${index + 2}: Ngày không hợp lệ - Date=${dateRaw}`);
+          // console.warn(`Dòng ${index + 2}: Ngày không hợp lệ - Date=${dateRaw}`);
           return;
         }
 
@@ -419,7 +421,7 @@ export const exportRawDataWithErrors = async (rawWorkbook, bigPromotionResults) 
 
 
         if (!storeId) {
-          console.warn(`Dòng ${index + 2}: Thiếu dữ liệu - StoreID=${storeId}`);
+          // console.warn(`Dòng ${index + 2}: Thiếu dữ liệu - StoreID=${storeId}`);
           // Vẫn ghi dòng này vào sheet, nhưng không xử lý sai sót
           const excelRow = sheet.addRow(row);
           excelRow.getCell(reasonColumnIndex).value = reasons[index] || "";
@@ -480,13 +482,13 @@ export const exportRawDataWithErrors = async (rawWorkbook, bigPromotionResults) 
           reasons[index] = reason.trim();
        
         } else if (storeInFullyChecked) {
-          console.log(
-            `Dòng ${index + 2} (${sheetName}): StoreID=${storeId}, Product_id=${itemCode || "Không có Product_id"}, Reason=Không có sai sót (FullyChecked)`
-          );
+          // console.log(
+          //   `Dòng ${index + 2} (${sheetName}): StoreID=${storeId}, Product_id=${itemCode || "Không có Product_id"}, Reason=Không có sai sót (FullyChecked)`
+          // );
         } else {
-          console.log(
-            `Dòng ${index + 2} (${sheetName}): StoreID=${storeId}, Product_id=${itemCode || "Không có Product_id"}, Reason=Không tìm thấy cửa hàng trong osaResults`
-          );
+          // console.log(
+          //   `Dòng ${index + 2} (${sheetName}): StoreID=${storeId}, Product_id=${itemCode || "Không có Product_id"}, Reason=Không tìm thấy cửa hàng trong osaResults`
+          // );
         }
 
         // Ghi dòng vào sheet

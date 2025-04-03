@@ -1,5 +1,5 @@
 // utils/checkPromotionBigMS.js
-
+import { getDateOnly } from "./dateUtils";
 export const checkPromotionBigMS = async (
     checklistData,
     rawData,
@@ -117,7 +117,7 @@ export const checkPromotionBigMS = async (
       let processedDates = 0;
   
       for (const dateKey in dateMap) {
-        const date = new Date(dateKey);
+        const date = getDateOnly(new Date(dateKey)); // Chuẩn hóa ngày đi chấm
         const dateResult = {
           date: date.toLocaleDateString("vi-VN"),
           customers: [],
@@ -151,9 +151,11 @@ export const checkPromotionBigMS = async (
               continue;
             }
   
-            const matchingRange = customerDateRanges.find(
-              (range) => date >= range.startDate && date <= range.endDate
-            );
+            const matchingRange = customerDateRanges.find((range) => {
+              const start = getDateOnly(range.startDate);
+              const end = getDateOnly(range.endDate);
+              return date.getTime() >= start.getTime() && date.getTime() <= end.getTime();
+            });
   
             if (!matchingRange) {
               storeResult.message = `Không tìm thấy chặng nào cho ngày ${date.toLocaleDateString("vi-VN")} của khách hàng ${customer}.`;

@@ -1,3 +1,5 @@
+import { getDateOnly } from "./dateUtils";
+
 export const checkBigOSA = async (storeItems, rawData, addProgressUpdate, setBatchProgress) => {
  
   
@@ -49,16 +51,18 @@ export const checkBigOSA = async (storeItems, rawData, addProgressUpdate, setBat
       const applicableExpectedItems = rawDate
         ? validExpectedItems.filter((item) => {
             // Đảm bảo rawDate nằm trong khoảng [startDate, endDate] (bao gồm cả cận biên)
-            const start = new Date(item.startDate);
-            const end = new Date(item.endDate);
-            const raw = new Date(rawDate);
+            const start = getDateOnly(item.startDate);
+            const end = getDateOnly(item.endDate);
+            const raw = getDateOnly(rawDate);
   
             // Đặt thời gian của các ngày về 00:00:00 để so sánh chính xác
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
-            raw.setHours(0, 0, 0, 0);
+            // start.setHours(0, 0, 0, 0);
+            // end.setHours(23, 59, 59, 999);
+            // raw.setHours(0, 0, 0, 0);
   
-            return raw >= start && raw <= end;
+            // return raw >= start && raw <= end;
+
+            return raw.getTime() >= start.getTime() && raw.getTime() <= end.getTime();
           })
         : [];
   
