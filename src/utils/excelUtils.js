@@ -112,10 +112,10 @@ export const processPromotionRawData = (data) => {
     });
 
     if (
-      item["Product ID"] !== undefined &&
+      item["Product_id"] !== undefined &&
       item["Audit status"] !== "Not Yet"
     ) {
-      const uniqueKey = `${item["Store ID - Unilever"]}_${item["Promotion ID"]}_${item["Product ID"]}`;
+      const uniqueKey = `${item["Store ID - Unilever"]}_${item["Promotion_id"]}_${item["Product_id"]}`;
       const existingItem = uniqueItems.get(uniqueKey);
 
       if (!existingItem) {
@@ -141,7 +141,7 @@ export const processRawData = (data) => {
     });
 
     if (
-      item["Product ID"] !== undefined &&
+      item["Product_id"] !== undefined &&
       item["Audit status"] !== "Not Yet"
     ) {
       acc.push(item);
@@ -160,9 +160,9 @@ const excelSerialToDate = (serial) => {
 export const processChecklistBigFormatData = (data) => {
   // Step 1: Identify the main headers (Row 5, index 4)
   const promotionHeaders = data[5];
-  if (!promotionHeaders || !promotionHeaders.includes("KA")) {
-    throw new Error("Could not find main headers (expected 'KA' in Row 5).");
-  }
+  // if (!promotionHeaders || !promotionHeaders.includes("KA")) {
+  //   throw new Error("Could not find main headers (expected 'KA' in Row 5).");
+  // }
 
   // Step 2: Get the store code mappings (Row 3, index 2)
   const storeCodeMappings = data[4];
@@ -426,8 +426,8 @@ export const processBIGPromotionRawData = (data, sheetName) => {
     // Log từng dòng để kiểm tra
 
     // Filter out items where Result is not 1 (assuming Kết quả (1/0) indicates audit completion)
-    if (item["ProductID"] !== undefined) {
-      const uniqueKey = `${item["StoreID"]}_${item["PromotionID"]}_${item["ProductID"]}`;
+    if (item["Product_id"] !== undefined) {
+      const uniqueKey = `${item["StoreID"]}_${item["PromotionID"]}_${item["Product_id"]}`;
       const existingItem = uniqueItems.get(uniqueKey);
 
       if (!existingItem) {
