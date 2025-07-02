@@ -112,10 +112,12 @@ export const processPromotionRawData = (data) => {
     });
 
     if (
-      item["Product_id"] !== undefined &&
+      item["Product ID"] !== undefined &&
       item["Audit status"] !== "Not Yet"
     ) {
       const uniqueKey = `${item["Store ID - Unilever"]}_${item["Promotion_id"]}_${item["Product_id"]}`;
+
+
       const existingItem = uniqueItems.get(uniqueKey);
 
       if (!existingItem) {
@@ -141,7 +143,7 @@ export const processRawData = (data) => {
     });
 
     if (
-      item["Product_id"] !== undefined &&
+       item["Product ID"] !== undefined &&
       item["Audit status"] !== "Not Yet"
     ) {
       acc.push(item);
@@ -426,8 +428,8 @@ export const processBIGPromotionRawData = (data, sheetName) => {
     // Log từng dòng để kiểm tra
 
     // Filter out items where Result is not 1 (assuming Kết quả (1/0) indicates audit completion)
-    if (item["Product_id"] !== undefined) {
-      const uniqueKey = `${item["StoreID"]}_${item["PromotionID"]}_${item["Product_id"]}`;
+    if (item["ProductID"] !== undefined) {
+      const uniqueKey = `${item["StoreID"]}_${item["PromotionID"]}_${item["ProductID"]}`;
       const existingItem = uniqueItems.get(uniqueKey);
 
       if (!existingItem) {
