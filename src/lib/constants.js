@@ -6,6 +6,7 @@ export const STORE_TYPES = {
   BSM: "STR-BSM",
   CIRCLE_K: "STR-CCK",
   KINGFOOD: "STR-KING",
+  
   // Add other store types as needed
 };
 

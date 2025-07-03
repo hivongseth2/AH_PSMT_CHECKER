@@ -80,6 +80,8 @@ export const processChecklistPromotionData = (data) => {
         storeName[index].startsWith("TYPE")
       ) {
         if (!item.stores) item.stores = {};
+        console.log(cellValue);
+        
         item.stores[storeName[index]] = cellValue;
       } else {
         item[header] = cellValue;
@@ -95,6 +97,7 @@ export const processChecklistPromotionData = (data) => {
   } else {
     console.log("stores không tồn tại hoặc không hợp lệ.");
   }
+  console.log(processedData,'processedData')
 
   return processedData;
 };
