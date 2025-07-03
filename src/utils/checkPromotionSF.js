@@ -166,18 +166,24 @@ export const checkPromotion = async (
             end: normalizedEndDate,
           })
         ) {
+          
+          console.log(checklistItem);
+          
           storeTypesVisited.forEach((storeType) => {
+            
             if (
               checklistItem.stores[storeType] === "Y" &&
               results.storeVisits[dateKey]?.[storeType]
             ) {
+
+              console.log("clitem",checklistItem.stores[storeType] );
+              
+              
               expectedCount += results.storeVisits[dateKey][storeType].length;
               results.storeVisits[dateKey][storeType].forEach((store) =>
               {
                 expectedStores.add(store)
-                console.log( 'ad store' ,store);
-                  console.log( 'dateKey' ,dateKey);
-                  console.log('storeType',storeType);
+
                   
                 
               }
