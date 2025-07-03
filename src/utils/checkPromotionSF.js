@@ -173,12 +173,21 @@ export const checkPromotion = async (
             ) {
               expectedCount += results.storeVisits[dateKey][storeType].length;
               results.storeVisits[dateKey][storeType].forEach((store) =>
+              {
                 expectedStores.add(store)
+                console.log( 'ad store' ,store);
+                  console.log( 'dateKey' ,dateKey);
+                  console.log('storeType',storeType);
+                  
+                
+              }
               );
             }
           });
         }
       }
+      
+      
 
       results.validCount += actualCount;
 
