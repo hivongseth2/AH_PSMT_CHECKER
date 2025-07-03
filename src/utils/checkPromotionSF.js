@@ -33,7 +33,7 @@ export const checkPromotion = async (
   // Tạo map cho checklist để tra cứu nhanh hơn
   const checklistMap = new Map();
   checklist.forEach((item) => {
-    const key = `${item["Promotion ID"]}_${item["Customer"]}`;
+    const key = `${item["Promotion ID"]}_${item["Customer ID"]}`;
     checklistMap.set(key, item);
   });
 
@@ -75,7 +75,7 @@ export const checkPromotion = async (
       const {
         Date: rawDate,
         "Store ID - Unilever": storeId,
-        Customer: customerName,
+        Customer: CustomerID,
         "Promotion ID": promotionId,
         TYPESTORE: typeStore,
       } = row;
@@ -118,7 +118,7 @@ export const checkPromotion = async (
       }
 
       const dateKey = format(rowDate, "yyyy-MM-dd");
-      const groupKey = `${promotionId}_${customerName}_${dateKey}`;
+      const groupKey = `${promotionId}_${CustomerID}_${dateKey}`;
       if (!results.groupedData[groupKey]) {
         results.groupedData[groupKey] = [];
       }
@@ -140,7 +140,6 @@ export const checkPromotion = async (
   const groupKeys = Object.keys(results.groupedData);
 
 
-  console.log("groupkey",groupKeys);
   
   const groupGenerator = batchGenerator(groupKeys, batchSize);
   let processedGroups = 0;
