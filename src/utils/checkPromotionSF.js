@@ -166,9 +166,7 @@ export const checkPromotion = async (
             end: normalizedEndDate,
           })
         ) {
-          
-          console.log(checklistItem);
-          
+                    
           storeTypesVisited.forEach((storeType) => {
             
             if (
@@ -176,7 +174,6 @@ export const checkPromotion = async (
               results.storeVisits[dateKey]?.[storeType]
             ) {
 
-              console.log("clitem",checklistItem.stores[storeType] );
               
               
               expectedCount += results.storeVisits[dateKey][storeType].length;

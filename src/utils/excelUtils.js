@@ -69,6 +69,8 @@ export const processChecklistPromotionData = (data) => {
 
     headers.forEach((header, index) => {
       const cellValue = row[index];
+         console.log('cellvalue0',cellValue);
+      
 
       if (DATE_FIELDS.includes(header) && typeof cellValue === "number") {
         item[header] = excelSerialToDate(cellValue);
