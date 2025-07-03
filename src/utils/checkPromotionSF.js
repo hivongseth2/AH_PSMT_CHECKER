@@ -24,6 +24,9 @@ export const checkPromotion = async (
     storeVisits: {},
   };
 
+  console.log("checklist", checklist);
+  
+
   const batchSize = 1000;
   const totalItems = rawData.length;
 
@@ -34,6 +37,10 @@ export const checkPromotion = async (
     checklistMap.set(key, item);
   });
 
+
+
+  console.log("checklistmap", checklistMap);
+  
   // Group store visits
   const storeVisitsMap = new Map();
   for (const row of rawData) {
@@ -131,6 +138,10 @@ export const checkPromotion = async (
 
   // Process grouped data
   const groupKeys = Object.keys(results.groupedData);
+
+
+  console.log("groupkey",groupKeys);
+  
   const groupGenerator = batchGenerator(groupKeys, batchSize);
   let processedGroups = 0;
 

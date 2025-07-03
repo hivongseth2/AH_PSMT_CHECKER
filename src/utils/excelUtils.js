@@ -69,8 +69,6 @@ export const processChecklistPromotionData = (data) => {
 
     headers.forEach((header, index) => {
       const cellValue = row[index];
-         console.log('cellvalue0',cellValue);
-      
 
       if (DATE_FIELDS.includes(header) && typeof cellValue === "number") {
         item[header] = excelSerialToDate(cellValue);
@@ -82,8 +80,6 @@ export const processChecklistPromotionData = (data) => {
         storeName[index].startsWith("TYPE")
       ) {
         if (!item.stores) item.stores = {};
-        console.log(cellValue);
-        
         item.stores[storeName[index]] = cellValue;
       } else {
         item[header] = cellValue;
@@ -99,7 +95,6 @@ export const processChecklistPromotionData = (data) => {
   } else {
     console.log("stores không tồn tại hoặc không hợp lệ.");
   }
-  console.log(processedData,'processedData')
 
   return processedData;
 };
@@ -455,8 +450,7 @@ export const processChecklistBigOSAData = (data) => {
     "STR-VINM",
     "STR-LANC",
     "STR-THAD",
-    "STR-VINP",
-    "STR-COPF"
+    "STR-VINM",
   ];
 
   // Step 1: Identify the main headers (Row 12, index 11)
