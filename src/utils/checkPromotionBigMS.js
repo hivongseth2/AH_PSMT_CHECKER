@@ -88,11 +88,7 @@ export const checkPromotionBigMS = async (
   
         const dateKey = auditDate.toISOString().split("T")[0]; // e.g., "2025-03-01"
   
-        if(promotionId==="PRO-COPM-0225-00464")
-        {
-            console.log( dateKey  ,customer, storeId);
-            
-        }
+
         if (!dateMap[dateKey]) {
           dateMap[dateKey] = {};
         }

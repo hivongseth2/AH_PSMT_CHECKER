@@ -450,7 +450,8 @@ export const processChecklistBigOSAData = (data) => {
     "STR-VINM",
     "STR-LANC",
     "STR-THAD",
-    "STR-VINM",
+    "STR-VINP",
+    "STR-COPF"
   ];
 
   // Step 1: Identify the main headers (Row 12, index 11)
