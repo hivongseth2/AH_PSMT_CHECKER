@@ -83,6 +83,8 @@ export const checkPromotion = async (
         TYPESTORE: typeStore,
       } = row;
 
+      console.log('roww',row);
+      
       if (!rawDate || rawDate.trim() === "") {
         results.invalidRows.push({
           index: processedItems + index + 2,
