@@ -78,7 +78,7 @@ export const checkPromotion = async (
       const {
         Date: rawDate,
         "Store ID - Unilever": storeId,
-        Customer: CustomerId,
+        "Customer ID": CustomerId,
         "Promotion ID": promotionId,
         TYPESTORE: typeStore,
       } = row;
