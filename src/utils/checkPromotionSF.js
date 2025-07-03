@@ -172,7 +172,7 @@ export const checkPromotion = async (
           storeTypesVisited.forEach((storeType) => {
             
             if (
-              checklistItem.stores[storeType] === "Y" &&
+              checklistItem.stores[storeType].strip() === "Y" &&
               results.storeVisits[dateKey]?.[storeType]
             ) {
 
