@@ -70,12 +70,15 @@ export const checkPromotion = async (
   const rawDataGenerator = batchGenerator(rawData, batchSize);
   let processedItems = 0;
 
+  console.log('rawData',rawData);
+  
+
   for (const batch of rawDataGenerator) {
     for (const [index, row] of batch.entries()) {
       const {
         Date: rawDate,
         "Store ID - Unilever": storeId,
-        Customer: CustomerID,
+        Customer: CustomerId,
         "Promotion ID": promotionId,
         TYPESTORE: typeStore,
       } = row;
@@ -118,7 +121,7 @@ export const checkPromotion = async (
       }
 
       const dateKey = format(rowDate, "yyyy-MM-dd");
-      const groupKey = `${promotionId}_${CustomerID}_${dateKey}`;
+      const groupKey = `${promotionId}_${CustomerId}_${dateKey}`;
       if (!results.groupedData[groupKey]) {
         results.groupedData[groupKey] = [];
       }
@@ -147,7 +150,7 @@ export const checkPromotion = async (
   for (const groupBatch of groupGenerator) {
     for (const groupKey of groupBatch) {
       const rows = results.groupedData[groupKey];
-      const [promotionId, customerName, dateKey] = groupKey.split("_");
+      const [promotionId, customerId, dateKey] = groupKey.split("_");
       const date = parseISO(dateKey);
 
       let actualCount = rows.length;
@@ -162,7 +165,10 @@ export const checkPromotion = async (
         actualStores.set(storeId, (actualStores.get(storeId) || 0) + 1);
       });
 
-      const checklistItem = checklistMap.get(`${promotionId}_${customerName}`);
+      const checklistItem = checklistMap.get(`${promotionId}_${customerId}`);
+
+      console.log("checklist Item", checklistItem);
+      
       if (checklistItem) {
         const startDate = new Date(checklistItem["START DATE"]);
         const endDate = new Date(checklistItem["END DATE"]);
@@ -257,7 +263,7 @@ export const checkPromotion = async (
         results.errors.push({
           date: dateKey,
           promotionId,
-          customerName,
+          customerId,
           message: `Mismatch in promotion count. Expected: ${expectedCount}, Actual: ${actualCount}`,
           difference: actualCount - expectedCount,
           storeVisits: results.storeVisits[dateKey],
@@ -277,7 +283,7 @@ export const checkPromotion = async (
         results.dailySummary[dateKey] = {};
       }
       results.dailySummary[dateKey][promotionId] = {
-        customerName,
+        customerId,
         actualCount,
         expectedCount,
         difference: actualCount - expectedCount,
