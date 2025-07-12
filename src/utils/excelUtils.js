@@ -156,17 +156,17 @@ export const processRawData = (data) => {
 };
 
 export const processStoreData = (data) => {
-  const headers = data[0];
-  const essStoreCodeIndex = headers.indexOf("ESSSTORECODE");
+  const headers = data[7];
+  const storeIdIndex = headers.indexOf("STORE ID - UNILEVER");
+  const reportStatusIndex = headers.indexOf("TÌNH TRẠNG REPORT");
 
-  if (essStoreCodeIndex === -1) return [];
+  if (storeIdIndex === -1 || reportStatusIndex === -1) return [];
 
-  return data.slice(1)
-    .map(row => row[essStoreCodeIndex])
-    .filter(code => code !== undefined && code !== null && code !== "");
+  return data.slice(8) // dòng 9 trở đi
+    .filter(row => row[reportStatusIndex]?.trim() === "Done")
+    .map(row => row[storeIdIndex]?.trim())
+    .filter(code => !!code); // loại undefined, null, empty string
 };
-
-
 
 
 const excelSerialToDate = (serial) => {

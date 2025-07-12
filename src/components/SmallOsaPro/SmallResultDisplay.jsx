@@ -6,8 +6,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../tabs"
 
 import ScoringResultDisplay from "../ScoringResultDisplay"
 import PromotionResultDisplay from "../PromotionResultDisplay"
+import { StoreCompareResult } from "./SmallStoreResult"
 
-const SmallPromotionResults = ({ promotionResults,isProcessing,batchProgress,currentProgress,osaResults }) => {
+const SmallPromotionResults = ({ promotionResults,isProcessing,batchProgress,currentProgress,osaResults,checkStoreResult }) => {
   // Initialize state variables with default values
 
   const [activeTab, setActiveTab] = useState("osa")
@@ -34,6 +35,9 @@ const SmallPromotionResults = ({ promotionResults,isProcessing,batchProgress,cur
             <TabsContent >
 
             {activeTab === "osa" && (
+              <>
+              <StoreCompareResult result={checkStoreResult}/>
+
                <ScoringResultDisplay
                results={osaResults}
                isLoading={isProcessing}
@@ -41,6 +45,10 @@ const SmallPromotionResults = ({ promotionResults,isProcessing,batchProgress,cur
                progressUpdates={currentProgress}
              
              />
+
+             
+              </>
+              
             )}
 
 

@@ -90,7 +90,7 @@ function MainApp() {
       const [checklistData, osaRawData, storeData] = await Promise.all([
         processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"), 
         processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
-        processExcelFile(files[FILE_TYPES.STORE], "Sheet1"), // tham số đầu tiên là type, tham số thứ 2 là sheet name 
+        processExcelFile(files[FILE_TYPES.STORE], "Worksheet1"), // tham số đầu tiên là type, tham số thứ 2 là sheet name 
 
       ]);
 
@@ -98,12 +98,12 @@ function MainApp() {
       const osaProcessedRaw = processRawData(osaRawData);
       const storeRequire = processStoreData(storeData)
       // kiểm tra logic sku có đủ không
-      // const osaResults = await countStore( 
-      //   osaChecklist,
-      //   osaProcessedRaw,
-      //   addProgressUpdate,
-      //   setBatchProgress
-      // );
+      const osaResults = await countStore( 
+        osaChecklist,
+        osaProcessedRaw,
+        addProgressUpdate,
+        setBatchProgress
+      );
 
       // Kiểm tra sự xuất hiện của store có trong raw không ? file osa smalll
 
@@ -111,22 +111,22 @@ function MainApp() {
       setCheckStoreResult(storeRequireResults)
       // kiểm tra promotion small
 
-      // const [checklistDataPro, promoRawData] = await Promise.all([
-      //   processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
-      //   processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
-      // ]);
+      const [checklistDataPro, promoRawData] = await Promise.all([
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
+        processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
+      ]);
 
-      // const promoChecklist = processChecklistPromotionData(checklistDataPro);
-      // const promoProcessedRaw = processPromotionRawData(promoRawData);
-      // const promoResults = await checkPromotion(
-      //   promoChecklist,
-      //   promoProcessedRaw,
-      //   addProgressUpdate,
-      //   setBatchProgress
-      // );
+      const promoChecklist = processChecklistPromotionData(checklistDataPro);
+      const promoProcessedRaw = processPromotionRawData(promoRawData);
+      const promoResults = await checkPromotion(
+        promoChecklist,
+        promoProcessedRaw,
+        addProgressUpdate,
+        setBatchProgress
+      );
 
-      // setScoringResults(osaResults);
-      // setPromotionResults(promoResults);
+      setScoringResults(osaResults);
+      setPromotionResults(promoResults);
     } catch (error) {
       console.error(error);
       setScoringResults([
@@ -298,7 +298,11 @@ function MainApp() {
               </Link>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div
+                className={`grid gap-4 mb-6 ${
+                  activeTab === "OSA_PRO_SMALL" ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2"
+                }`}
+              >
                 <FileUpload
                   label="File Kiểm Tra (Checklist)"
                   accept=".xlsx,.xls,.xlsb"
@@ -311,13 +315,17 @@ function MainApp() {
                   onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
                   file={files[FILE_TYPES.RAW_DATA]}
                 />
-                 <FileUpload
-                  label="File Store Data (DS store cần chấm)"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileChange(FILE_TYPES.STORE)}
-                  file={files[FILE_TYPES.STORE]}
-                />
+
+                {activeTab === "OSA_PRO_SMALL" && (
+                  <FileUpload
+                    label="File Store Data (DS store cần chấm)"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileChange(FILE_TYPES.STORE)}
+                    file={files[FILE_TYPES.STORE]}
+                  />
+                )}
               </div>
+
 
               <Tabs>
                 <TabsList className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -379,40 +387,20 @@ function MainApp() {
                 </TabsContent>
               </Tabs>
 
-              {/* {activeTab === "OSA_PRO_SMALL" && scoringResults != null && promotionResults != null && (
-                // <SmallPromotionResults
-                //   osaResults={scoringResults}
-                //   isProcessing={isProcessing}
-                //   batchProgress={batchProgress}
-                //   currentProgress={currentProgress}
-                //   promotionResults={promotionResults}
-                // />
-                // <StoreCompareResult storeData={storeData} rawData={rawData} />
-                <StoreCompareResult result={checkStoreResult}/>
-
-
-
-
-
-              )} */}
-
-
-                {activeTab === "OSA_PRO_SMALL" && checkStoreResult != null  && (
-                // <SmallPromotionResults
-                //   osaResults={scoringResults}
-                //   isProcessing={isProcessing}
-                //   batchProgress={batchProgress}
-                //   currentProgress={currentProgress}
-                //   promotionResults={promotionResults}
-                // />
-                // <StoreCompareResult storeData={storeData} rawData={rawData} />
-                <StoreCompareResult result={checkStoreResult}/>
-
-
-
-
-
+              {activeTab === "OSA_PRO_SMALL" && scoringResults != null && promotionResults != null && (
+                <>
+                <SmallPromotionResults
+                  osaResults={scoringResults}
+                  isProcessing={isProcessing}
+                  batchProgress={batchProgress}
+                  currentProgress={currentProgress}
+                  promotionResults={promotionResults}
+                  checkStoreResult={checkStoreResult}
+                />
+                {/* <StoreCompareResult result={checkStoreResult}/> */}
+                </>
               )}
+
 
               {activeTab === "PROMOTION_BIG" && (
                 <div>
