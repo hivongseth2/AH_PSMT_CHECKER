@@ -3,6 +3,8 @@ import {
   DATE_FIELDS,
   RAW_DATA_HEADERS,
   RAW_PROMOTION_DATA_HEADERS,
+  STORE_DATA_HEADERS,
+  STORE_
 } from "../lib/constants";
 
 export const processExcelFile = async (file, sheetName = null) => {
@@ -152,6 +154,20 @@ export const processRawData = (data) => {
     return acc;
   }, []);
 };
+
+export const processStoreData = (data) => {
+  const headers = data[0];
+  const essStoreCodeIndex = headers.indexOf("ESSSTORECODE");
+
+  if (essStoreCodeIndex === -1) return [];
+
+  return data.slice(1)
+    .map(row => row[essStoreCodeIndex])
+    .filter(code => code !== undefined && code !== null && code !== "");
+};
+
+
+
 
 const excelSerialToDate = (serial) => {
   const epoch = new Date(1899, 11, 30);

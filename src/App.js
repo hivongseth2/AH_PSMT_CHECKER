@@ -18,7 +18,8 @@ import {
   processChecklistBigFormatData,
   processBIGPromotionRawData,
   processChecklistBigOSAData, // Thêm import
-  processBigOSARawData
+  processBigOSARawData,
+  processStoreData
 } from "./utils/excelUtils";
 import { countStore } from "./utils/countStore";
 import { checkPromotion } from "./utils/checkPromotionSF";
@@ -28,12 +29,15 @@ import { exportRawDataWithErrors } from "./utils/exportUtils";
 import { checkBigOSA } from "./utils/checkOSABig"; // Thêm import
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { checkRequireStore } from "./utils/checkRequireStoreOSASmall";
+import { StoreCompareResult } from "./components/SmallOsaPro/SmallStoreResult";
 
 // Component chính cho giao diện kiểm tra PSMT
 function MainApp() {
   const [files, setFiles] = useState({
     [FILE_TYPES.CHECKLIST]: null,
     [FILE_TYPES.RAW_DATA]: null,
+    [FILE_TYPES.STORE]:null
   });
   const [activeTab, setActiveTab] = useState("OSA_PRO_SMALL");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,6 +48,7 @@ function MainApp() {
   const [batchProgress, setBatchProgress] = useState(0);
   const [currentProgress, setCurrentProgress] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [checkStoreResult,setCheckStoreResult] = useState(null)
 
   const handleFileChange = (type) => (event) => {
     setFiles((prev) => ({
@@ -59,7 +64,7 @@ function MainApp() {
   }, []);
 
   const handleSmallFormatCheck = async () => {
-    if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA]) return;
+    if (!files[FILE_TYPES.CHECKLIST] || !files[FILE_TYPES.RAW_DATA] || !files[FILE_TYPES.STORE] )  return;
 
     setIsProcessing(true);
     setScoringResults(null);
@@ -80,38 +85,48 @@ function MainApp() {
         rawFileReader.readAsArrayBuffer(files[FILE_TYPES.RAW_DATA]);
       });
       const rawWorkbook = await rawPromise;
-      setRawWorkbook(rawWorkbook);
+      setRawWorkbook(rawWorkbook); // này là để 
 
-      const [checklistData, osaRawData] = await Promise.all([
-        processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"),
+      const [checklistData, osaRawData, storeData] = await Promise.all([
+        processExcelFile(files[FILE_TYPES.CHECKLIST], "OSA"), 
         processExcelFile(files[FILE_TYPES.RAW_DATA], "OSA_RAW"),
+        processExcelFile(files[FILE_TYPES.STORE], "Sheet1"), // tham số đầu tiên là type, tham số thứ 2 là sheet name 
+
       ]);
 
       const osaChecklist = processChecklistData(checklistData);
       const osaProcessedRaw = processRawData(osaRawData);
-      const osaResults = await countStore(
-        osaChecklist,
-        osaProcessedRaw,
-        addProgressUpdate,
-        setBatchProgress
-      );
+      const storeRequire = processStoreData(storeData)
+      // kiểm tra logic sku có đủ không
+      // const osaResults = await countStore( 
+      //   osaChecklist,
+      //   osaProcessedRaw,
+      //   addProgressUpdate,
+      //   setBatchProgress
+      // );
 
-      const [checklistDataPro, promoRawData] = await Promise.all([
-        processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
-        processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
-      ]);
+      // Kiểm tra sự xuất hiện của store có trong raw không ? file osa smalll
 
-      const promoChecklist = processChecklistPromotionData(checklistDataPro);
-      const promoProcessedRaw = processPromotionRawData(promoRawData);
-      const promoResults = await checkPromotion(
-        promoChecklist,
-        promoProcessedRaw,
-        addProgressUpdate,
-        setBatchProgress
-      );
+      const storeRequireResults = await checkRequireStore(storeRequire,osaProcessedRaw)
+      setCheckStoreResult(storeRequireResults)
+      // kiểm tra promotion small
 
-      setScoringResults(osaResults);
-      setPromotionResults(promoResults);
+      // const [checklistDataPro, promoRawData] = await Promise.all([
+      //   processExcelFile(files[FILE_TYPES.CHECKLIST], "PROMOTION"),
+      //   processExcelFile(files[FILE_TYPES.RAW_DATA], "PROOL"),
+      // ]);
+
+      // const promoChecklist = processChecklistPromotionData(checklistDataPro);
+      // const promoProcessedRaw = processPromotionRawData(promoRawData);
+      // const promoResults = await checkPromotion(
+      //   promoChecklist,
+      //   promoProcessedRaw,
+      //   addProgressUpdate,
+      //   setBatchProgress
+      // );
+
+      // setScoringResults(osaResults);
+      // setPromotionResults(promoResults);
     } catch (error) {
       console.error(error);
       setScoringResults([
@@ -283,7 +298,7 @@ function MainApp() {
               </Link>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <FileUpload
                   label="File Kiểm Tra (Checklist)"
                   accept=".xlsx,.xls,.xlsb"
@@ -295,6 +310,12 @@ function MainApp() {
                   accept=".xlsx,.xls"
                   onChange={handleFileChange(FILE_TYPES.RAW_DATA)}
                   file={files[FILE_TYPES.RAW_DATA]}
+                />
+                 <FileUpload
+                  label="File Store Data (DS store cần chấm)"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange(FILE_TYPES.STORE)}
+                  file={files[FILE_TYPES.STORE]}
                 />
               </div>
 
@@ -358,14 +379,39 @@ function MainApp() {
                 </TabsContent>
               </Tabs>
 
-              {activeTab === "OSA_PRO_SMALL" && scoringResults != null && promotionResults != null && (
-                <SmallPromotionResults
-                  osaResults={scoringResults}
-                  isProcessing={isProcessing}
-                  batchProgress={batchProgress}
-                  currentProgress={currentProgress}
-                  promotionResults={promotionResults}
-                />
+              {/* {activeTab === "OSA_PRO_SMALL" && scoringResults != null && promotionResults != null && (
+                // <SmallPromotionResults
+                //   osaResults={scoringResults}
+                //   isProcessing={isProcessing}
+                //   batchProgress={batchProgress}
+                //   currentProgress={currentProgress}
+                //   promotionResults={promotionResults}
+                // />
+                // <StoreCompareResult storeData={storeData} rawData={rawData} />
+                <StoreCompareResult result={checkStoreResult}/>
+
+
+
+
+
+              )} */}
+
+
+                {activeTab === "OSA_PRO_SMALL" && checkStoreResult != null  && (
+                // <SmallPromotionResults
+                //   osaResults={scoringResults}
+                //   isProcessing={isProcessing}
+                //   batchProgress={batchProgress}
+                //   currentProgress={currentProgress}
+                //   promotionResults={promotionResults}
+                // />
+                // <StoreCompareResult storeData={storeData} rawData={rawData} />
+                <StoreCompareResult result={checkStoreResult}/>
+
+
+
+
+
               )}
 
               {activeTab === "PROMOTION_BIG" && (

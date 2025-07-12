@@ -6,7 +6,7 @@ export const STORE_TYPES = {
   BSM: "STR-BSM",
   CIRCLE_K: "STR-CCK",
   KINGFOOD: "STR-KING",
-  
+
   // Add other store types as needed
 };
 
@@ -15,6 +15,7 @@ export const FILE_TYPES = {
   RAW_DATA: "rawData",
   PROMOTION: "promotion",
   RAW_PROMOTION: "rawPromotion",
+  STORE: "store"
 };
 
 export const CHECK_TYPES = {
@@ -22,7 +23,7 @@ export const CHECK_TYPES = {
   SCORING: "scoring",
   PROMOTION: "promotion",
   BIG: "big",
-  SMALL:"small",
+  SMALL: "small",
 };
 
 export const CHECKLIST_HEADERS = [
@@ -198,3 +199,25 @@ export const DATE_FIELDS = [
   "Ngày Kết Thúc Linh Động Đo Hàng Cũ & Mới",
   "Ngày review SKU relaunch",
 ];
+
+export const STORE_DATA_HEADERS = [
+  "KA",
+  "CHANNEL",
+  "CUSTOMER_ID", 
+  "CUSTOMER",
+  "ESSSTORECODE",
+  "STORE_ID",
+  "STORE_NAME",
+  "STORETYPECODE",
+  "TYPE_STORE", "FORMATTYPE", "STATUS", "SUPERVISOR", "SUP_CODE", "SUP_MAIL", "AUDITOR_CODE",
+  "AUDITOR_NAME",
+  "NGAY_CHAM_DIEM",
+  "SR",
+  "SR_MAIL",
+  "Tần suất",
+  "Thời gian chấm",
+  "REGION NAME",
+  "PROVINCENAME", "DISTRICTNAME", "WARDNAME", "STORE_ADDRESS", "GHI CHU", "REQUEST", "ACTIVE", "DATE", "LONGITUDE",
+  "LATITUDE", "PHOTOS_DISALLOWED"
+
+]
