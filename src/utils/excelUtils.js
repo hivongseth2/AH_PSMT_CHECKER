@@ -25,7 +25,7 @@ export const processExcelFile = async (file, sheetName = null) => {
           const firstSheetName = workbook.SheetNames[0];
           worksheet = workbook.Sheets[firstSheetName];
         }
-// erm
+        // erm
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         resolve(jsonData);
       } catch (error) {
@@ -75,10 +75,10 @@ export const processChecklistPromotionData = (data) => {
       if (DATE_FIELDS.includes(header) && typeof cellValue === "number") {
         item[header] = excelSerialToDate(cellValue);
       } else if (
-        header1 && 
-        storeName && 
-        storeName[index] && 
-        typeof storeName[index] === "string" && 
+        header1 &&
+        storeName &&
+        storeName[index] &&
+        typeof storeName[index] === "string" &&
         storeName[index].startsWith("TYPE")
       ) {
         if (!item.stores) item.stores = {};
@@ -114,7 +114,7 @@ export const processPromotionRawData = (data) => {
     });
 
     if (
-      item["Product ID"] !== undefined &&
+      item["Product_id"] !== undefined &&
       item["Audit status"] !== "Not Yet"
     ) {
       const uniqueKey = `${item["Store ID - Unilever"]}_${item["Promotion_id"]}_${item["Product_id"]}`;
@@ -145,7 +145,7 @@ export const processRawData = (data) => {
     });
 
     if (
-       item["Product ID"] !== undefined &&
+      item["Product ID"] !== undefined &&
       item["Audit status"] !== "Not Yet"
     ) {
       acc.push(item);
