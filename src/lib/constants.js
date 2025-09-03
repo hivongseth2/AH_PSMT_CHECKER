@@ -139,6 +139,8 @@ export const RAW_PROMOTION_DATA_HEADERS = [
   "PS Category",
   "Product ID",
   "Promotion ID",
+  "Product_id",
+  "Promotion_id",
   "Product Name",
   "Mechanic (Chương trình khuyến mãi)",
   "Vị trí",
@@ -201,7 +203,7 @@ export const DATE_FIELDS = [
 ];
 
 export const STORE_DATA_HEADERS = [
-"FORMAT",	"STORE ID - UNILEVER",	"STORE NAME",	"CUSTOMER ID",	"CUSTOMER",	"SUPERVISOR",	"YÊU CẦU CHẤM",	"NHÂN VIÊN CHẤM",	"NGÀY CHẤM",	"CHECKIN",	"CHECKIN NOTE",	"CHECKOUT",	"CHECKOUT NOTE"	,"PREDEFINED", "NOTE",	"THỜI GIAN CHẤM	HÌNH ẢNH ĐÃ GỬI",	"TỔNG HÌNH ẢNH",	"LINK HÌNH",	"TÌNH TRẠNG REPORT",	"PHASE",	"PHASE VALID",	"SR ĐỒNG Ý",	"SR PHẢN HỒI",	"TÊN SR"																											
+  "FORMAT", "STORE ID - UNILEVER", "STORE NAME", "CUSTOMER ID", "CUSTOMER", "SUPERVISOR", "YÊU CẦU CHẤM", "NHÂN VIÊN CHẤM", "NGÀY CHẤM", "CHECKIN", "CHECKIN NOTE", "CHECKOUT", "CHECKOUT NOTE", "PREDEFINED", "NOTE", "THỜI GIAN CHẤM	HÌNH ẢNH ĐÃ GỬI", "TỔNG HÌNH ẢNH", "LINK HÌNH", "TÌNH TRẠNG REPORT", "PHASE", "PHASE VALID", "SR ĐỒNG Ý", "SR PHẢN HỒI", "TÊN SR"
 
 
 ]
