@@ -25,7 +25,7 @@ export const checkPromotion = async (
   };
 
   console.log("checklist", checklist);
-  
+
 
   const batchSize = 1000;
   const totalItems = rawData.length;
@@ -40,7 +40,7 @@ export const checkPromotion = async (
 
 
   console.log("checklistmap", checklistMap);
-  
+
   // Group store visits
   const storeVisitsMap = new Map();
   for (const row of rawData) {
@@ -70,8 +70,8 @@ export const checkPromotion = async (
   const rawDataGenerator = batchGenerator(rawData, batchSize);
   let processedItems = 0;
 
-  console.log('rawData',rawData);
-  
+  console.log('rawData', rawData);
+
 
   for (const batch of rawDataGenerator) {
     for (const [index, row] of batch.entries()) {
@@ -83,8 +83,8 @@ export const checkPromotion = async (
         TYPESTORE: typeStore,
       } = row;
 
-      console.log('roww',row);
-      
+      // console.log('roww',row);
+
       if (!rawDate || rawDate.trim() === "") {
         results.invalidRows.push({
           index: processedItems + index + 2,
@@ -130,6 +130,8 @@ export const checkPromotion = async (
       results.groupedData[groupKey].push({ ...row, index: processedItems + index + 2 });
     }
 
+    console.log(results)
+
     processedItems += batch.length;
     const progress = Math.round((processedItems / totalItems) * 50); // 50% cho bước này
     setBatchProgress(progress);
@@ -145,7 +147,7 @@ export const checkPromotion = async (
   const groupKeys = Object.keys(results.groupedData);
 
 
-  
+
   const groupGenerator = batchGenerator(groupKeys, batchSize);
   let processedGroups = 0;
 
@@ -170,7 +172,7 @@ export const checkPromotion = async (
       const checklistItem = checklistMap.get(`${promotionId}_${customerId}`);
 
       console.log("checklist Item", checklistItem);
-      
+
       if (checklistItem) {
         const startDate = new Date(checklistItem["START DATE"]);
         const endDate = new Date(checklistItem["END DATE"]);
@@ -184,33 +186,32 @@ export const checkPromotion = async (
             end: normalizedEndDate,
           })
         ) {
-                    
+
           storeTypesVisited.forEach((storeType) => {
-            
-            console.log("storevisit",storeTypesVisited);
-            
+
+            console.log("storevisit", storeTypesVisited);
+
             if (
               checklistItem.stores[storeType] === "Y" &&
               results.storeVisits[dateKey]?.[storeType]
             ) {
 
-              
-              
+
+
               expectedCount += results.storeVisits[dateKey][storeType].length;
-              results.storeVisits[dateKey][storeType].forEach((store) =>
-              {
+              results.storeVisits[dateKey][storeType].forEach((store) => {
                 expectedStores.add(store)
 
-                  
-                
+
+
               }
               );
             }
           });
         }
       }
-      
-      
+
+
 
       results.validCount += actualCount;
 
