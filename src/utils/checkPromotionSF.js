@@ -130,7 +130,7 @@ export const checkPromotion = async (
       results.groupedData[groupKey].push({ ...row, index: processedItems + index + 2 });
     }
 
-    console.log(results)
+    // console.log(results)
 
     processedItems += batch.length;
     const progress = Math.round((processedItems / totalItems) * 50); // 50% cho bước này
@@ -311,5 +311,6 @@ export const checkPromotion = async (
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
+  console.log(results)
   return results;
 };
